@@ -35,3 +35,8 @@ Thumbs.db
 # 涓存椂鏂囦欢
 *.log
 *.tmp
+
+# 报告源文件
+report/*.tex
+report/fig1_prompt.md
+report/refer.tex
