@@ -70,6 +70,46 @@ class MLP(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
+class DualHeadMLP(nn.Module):
+    """
+    双头 MLP: 前6维回归(MSE) + 夹爪分类(BCE)
+
+    对应问题2修复: 夹爪是二值离散变量, MSE 不合适.
+    架构: input → shared hidden layers → split
+          ├─ reg_head: 6-dim (joint positions)
+          └─ cls_head: 1-dim + Sigmoid (gripper open/close)
+    """
+
+    def __init__(self, input_dim=INPUT_DIM, hidden_dims=None, dropout=0.1):
+        super().__init__()
+        if hidden_dims is None:
+            hidden_dims = HIDDEN_DIMS
+
+        # 共享层
+        shared = []
+        prev = input_dim
+        for h in hidden_dims:
+            shared.append(nn.Linear(prev, h))
+            shared.append(nn.ReLU())
+            shared.append(nn.Dropout(dropout))
+            prev = h
+        self.shared = nn.Sequential(*shared)
+
+        # 回归头 (前6维)
+        self.reg_head = nn.Linear(hidden_dims[-1], 6)
+        # 分类头 (夹爪)
+        self.cls_head = nn.Linear(hidden_dims[-1], 1)
+
+    def forward(self, x):
+        feat = self.shared(x)
+        reg = self.reg_head(feat)         # (B, 6)
+        cls_logit = self.cls_head(feat)   # (B, 1)
+        return reg, cls_logit
+
+    def count_parameters(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+
 def train_mlp(model, train_features, train_actions, val_features=None, val_actions=None,
               epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LR, device='cuda', verbose=True):
     """
@@ -211,6 +251,140 @@ def evaluate_mlp(model, test_features, test_actions, device='cuda', return_per_d
     return mse
 
 
+# ============================================================
+# Dual-Head MLP: 前6维回归 + 夹爪分类
+# ============================================================
+GRIPPER_IDX = 6  # 夹爪在7维动作中的索引
+
+def train_dual_mlp(model, train_features, train_actions,
+                   val_features=None, val_actions=None,
+                   epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LR,
+                   reg_weight=0.86, device='cuda', verbose=True):
+    """
+    训练双头 MLP (6-d 回归 + 夹爪分类).
+
+    Args:
+        reg_weight: 回归损失权重 (0.86 ≈ 6/7)
+        train_actions: (N, 7) — 第7维是夹爪, 二值化后用于 BCE
+    """
+    set_seed(SEED)
+    device = device if torch.cuda.is_available() else 'cpu'
+    model = model.to(device)
+
+    # 拆分: 前6维回归, 第7维分类
+    reg_y = torch.FloatTensor(train_actions[:, :GRIPPER_IDX])
+    # 夹爪: 归一化后正值→1(闭合), 负值→0(张开)
+    gripper_y = torch.FloatTensor((train_actions[:, GRIPPER_IDX] > 0).astype(np.float32)).unsqueeze(1)
+    train_dataset = TensorDataset(torch.FloatTensor(train_features), reg_y, gripper_y)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+    val_loader = None
+    if val_features is not None:
+        val_reg = torch.FloatTensor(val_actions[:, :GRIPPER_IDX])
+        val_grip = torch.FloatTensor((val_actions[:, GRIPPER_IDX] > 0).astype(np.float32)).unsqueeze(1)
+        val_dataset = TensorDataset(torch.FloatTensor(val_features), val_reg, val_grip)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    mse_criterion = nn.MSELoss()
+    bce_criterion = nn.BCEWithLogitsLoss()
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='min', factor=0.5, patience=10
+    )
+
+    history = {'train_loss': [], 'val_loss': []}
+    cls_weight = 1.0 - reg_weight
+
+    iterator = range(epochs)
+    if verbose:
+        iterator = tqdm(iterator, desc='Dual-MLP 训练')
+
+    for epoch in iterator:
+        model.train()
+        train_loss = 0.0
+        for batch_x, batch_reg, batch_cls in train_loader:
+            batch_x, batch_reg, batch_cls = batch_x.to(device), batch_reg.to(device), batch_cls.to(device)
+            optimizer.zero_grad()
+            reg_pred, cls_logit = model(batch_x)
+            loss_reg = mse_criterion(reg_pred, batch_reg)
+            loss_cls = bce_criterion(cls_logit, batch_cls)
+            loss = reg_weight * loss_reg + cls_weight * loss_cls
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item() * batch_x.size(0)
+        train_loss /= len(train_loader.dataset)
+        history['train_loss'].append(train_loss)
+
+        if val_loader:
+            model.eval()
+            val_loss = 0.0
+            with torch.no_grad():
+                for batch_x, batch_reg, batch_cls in val_loader:
+                    batch_x, batch_reg, batch_cls = batch_x.to(device), batch_reg.to(device), batch_cls.to(device)
+                    reg_pred, cls_logit = model(batch_x)
+                    loss = reg_weight * mse_criterion(reg_pred, batch_reg) + cls_weight * bce_criterion(cls_logit, batch_cls)
+                    val_loss += loss.item() * batch_x.size(0)
+            val_loss /= len(val_loader.dataset)
+            history['val_loss'].append(val_loss)
+            scheduler.step(val_loss)
+        else:
+            scheduler.step(train_loss)
+
+    return history
+
+
+def evaluate_dual_mlp(model, test_features, test_actions, device='cuda'):
+    """
+    评估双头 MLP.
+
+    Returns:
+        mse_6d: 前6维联合 MSE
+        gripper_accuracy: 夹爪准确率
+        gripper_f1: 夹爪 F1 score
+        predictions: (N, 7) [6-d reg, gripper prob]
+    """
+    from sklearn.metrics import accuracy_score, f1_score
+    device = device if torch.cuda.is_available() else 'cpu'
+    model = model.to(device)
+    model.eval()
+
+    reg_y = torch.FloatTensor(test_actions[:, :GRIPPER_IDX])
+    gripper_y = (test_actions[:, GRIPPER_IDX] > 0).astype(np.int32)
+    test_dataset = TensorDataset(torch.FloatTensor(test_features), reg_y, torch.FloatTensor(gripper_y))
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+
+    all_reg_preds, all_cls_probs, all_cls_labels = [], [], []
+
+    mse_criterion = nn.MSELoss(reduction='sum')
+    total_mse = 0.0
+    total_samples = 0
+
+    with torch.no_grad():
+        for batch_x, batch_reg, batch_cls in test_loader:
+            batch_x = batch_x.to(device)
+            reg_pred, cls_logit = model(batch_x)
+            loss = mse_criterion(reg_pred, batch_reg.to(device))
+            total_mse += loss.item()
+            total_samples += batch_x.size(0)
+            all_reg_preds.append(reg_pred.cpu().numpy())
+            all_cls_probs.append(torch.sigmoid(cls_logit).cpu().numpy())
+            all_cls_labels.append(batch_cls.numpy())
+
+    mse_6d = total_mse / (total_samples * 6)  # 6个回归维度
+    reg_preds = np.concatenate(all_reg_preds, axis=0)
+    cls_probs = np.concatenate(all_cls_probs, axis=0).flatten()
+    cls_labels = np.concatenate(all_cls_labels, axis=0).flatten()
+    cls_preds = (cls_probs > 0.5).astype(np.int32)
+
+    acc = accuracy_score(cls_labels, cls_preds)
+    f1 = f1_score(cls_labels, cls_preds, zero_division=0)
+
+    # 拼接回7维用于 per-dim MSE
+    all_preds = np.hstack([reg_preds, cls_preds.reshape(-1, 1).astype(np.float32)])
+
+    return mse_6d, acc, f1, all_preds
+
+
 if __name__ == '__main__':
     # 测试
     set_seed(42)
@@ -219,4 +393,9 @@ if __name__ == '__main__':
     dummy_x = torch.randn(16, 512)
     dummy_y = model(dummy_x)
     print(f'输入: {dummy_x.shape} → 输出: {dummy_y.shape}')
+
+    model2 = DualHeadMLP(input_dim=2048)
+    print(f'DualHeadMLP 参数量: {model2.count_parameters():,}')
+    r, c = model2(torch.randn(4, 2048))
+    print(f'DualHead: reg={r.shape}, cls={c.shape}')
     print('MLP 测试通过')

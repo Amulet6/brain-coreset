@@ -45,6 +45,16 @@ def stack_features(features, boundaries, window=3):
     return stacked
 
 
+def concat_language(features, lang_embedding):
+    """
+    将语言嵌入拼接到每帧特征后面.
+    features: (N, D_v) → (N, D_v + D_lang)
+    """
+    N = features.shape[0]
+    lang_tiled = np.tile(lang_embedding, (N, 1)).astype(np.float32)
+    return np.concatenate([features, lang_tiled], axis=1)
+
+
 if __name__ == '__main__':
     # 测试
     features = np.arange(20).reshape(10, 2).astype(np.float32)

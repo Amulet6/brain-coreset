@@ -74,6 +74,24 @@ class CLIPEncoder(nn.Module):
         return feat
 
 
+def get_language_embedding(text="transfer the red cube from one arm to the other", device='cuda'):
+    """
+    用 CLIP Text Encoder 编码语言指令, 返回 512d 向量.
+
+    ALOHA 数据集中所有 Episode 为同一任务, 语言嵌入为常量.
+    """
+    import open_clip
+    device = device if torch.cuda.is_available() else 'cpu'
+    model, _, _ = open_clip.create_model_and_transforms('ViT-B-32', pretrained='laion2b_s34b_b79k')
+    tokenizer = open_clip.get_tokenizer('ViT-B-32')
+    model = model.to(device)
+    model.eval()
+    with torch.no_grad():
+        text_tokens = tokenizer([text]).to(device)
+        text_feat = model.encode_text(text_tokens, normalize=True)
+    return text_feat.cpu().numpy().flatten().astype(np.float32)
+
+
 class FeatureExtractor:
     """
     视觉特征提取器

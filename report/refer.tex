@@ -1,0 +1,1025 @@
+\documentclass[supercite]{HustGraduPaper}
+%进行个人信息设置
+\title{深度图像抠图中的数据合成机制探索} %论文题目
+\author{\small{熊大($20\%$)、刘二($20\%$)、张三($20\%$)、李四($20\%$)、王五($20\%$)}} %作者姓名
+\date{\today} %日期，默认当日
+\school{人工智能与自动化学院} %院系名称
+\classnum{人工智能2001班、自动化2002班} %专业班级
+\stunum {\small{U2020-12345、-23456、-34567、-45678、-56789}} %学号
+\instructor{陆昊} %指导教师姓名
+
+%添加自己要用的其他宏包
+\usepackage{xltxtra}
+\usepackage{bm}
+\usepackage{amsfonts}
+\usepackage{amsmath,bm}
+\usepackage{array}
+\usepackage{natbib}
+\usepackage{hyperref}
+\usepackage{algorithm}
+\usepackage{multirow}
+\usepackage{bbding}
+\usepackage{algorithmic}
+\usepackage{mathrsfs,tabularx,multirow,makecell,setspace,subfig,color,booktabs,multirow}
+\usepackage{graphicx}
+\usepackage{abstract}
+\definecolor{mygreen}{RGB}{90,135,109}
+\renewcommand{\algorithmicrequire}{\textbf{输入:}}
+\renewcommand{\algorithmicensure}{\textbf{输出:}}
+
+\begin{document}
+	%生成标题页 \maketitle[可选参数]
+	%可选参数：
+	%logo color=green/black 华中科技大学字样的颜色，绿色或者黑色，默认绿色
+	%line length=12em 填写信息处横线的长度，默认12em
+	%line font=huawenzhongsong 填写信息的字体，默认huawenzhongsong
+	\maketitle
+	%生成声明与授权书页 \statement[可选参数]
+	%可选参数：
+	%confidentiality=yes/no/true/false/empty 是否保密，yes/true为保密；no/false为不保密，empty为不填，默认为empty
+	%year=5 保密年数，默认为空
+	
+	\clearpage %结束上一页
+	\pagenumbering{Roman} %摘要页码为大写罗马数字
+	
+	%填写中文摘要内容和关键字
+	\begin{cnabstract}{图像抠图；深度学习；图像合成}
+		图像抠图，作为电影制作、海报制作中非常重要的一环，在日常生活中已经发挥了很大的作用。作为精度要求非常高的任务，图像抠图要求得到前景中每一个像素点的透明度值，从而实现将前景自然地从背景中分离出来。随着深度学习的发展，基于深度学习的图像抠图方法展现出了巨大潜力，研究者们提出了不同的模型用于提升在测试集上的准确度，但还有一个关键的问题尚未解决——可用于训练的高精度真实前景蒙版数量非常少。于是，怎样最大化利用这些有限前景生成训练样本，是非常值得探讨的一个问题，但是这个问题在公开文献中很少被研究或提及。
+
+
+		本文将这一非常基础但被以往工作所忽略的问题，深度图像抠图的必备环节，定义为数据合成机制，并进行了深入研究。数据合成机制，描述的是一种训练样本生成流或规则，利用前景、前景蒙版和背景来生成训练数据集。现有的数据合成机制仅仅将前景合成到不同的背景或者将两张前景进行结合。然而本文认为，在之前方法中使用的前景结合方式是有问题的，这种方式会在结合前景中产生伪影。为了解决这个问题，本文重新思考了前景结合背后的原理，得到了一种新的前景结合方式来合理地结合两张前景。得到了结合前景后，为了更好地利用结合前景，本文提出了一种新颖的数据合成机制，称为三元组式合成。它在源前景和结合前景之间建立了连接，这一连接能够很好地平衡前景模式的出现频率，从而有益于训练。此外，在实验时观察到在前景结合时，不同的结合顺序能得到不同的前景模式。这一发现给数据合成机制带来了更多可能性，基于此本文提出了四元组式合成。
+
+
+		在控制干扰变量的实验条件下，本文在三个经典的基线模型上进行了测试。结果表明本文提出的数据合成机制远远优于现有的数据合成机制，带来了稳定，可观的提升。例如，在IndexNet上减少了$12\sim15\%$的相对误差。
+
+        本课题已总结为一篇论文被AAAI收录，本人为第一作者。
+		
+	\end{cnabstract}
+	%填写英文摘要内容和关键字
+	\begin{enabstract}{Image Matting; Deep Learning; Image composition}
+		Image matting, the key technique in the filmmaking and poster making, plays an important role in our daily life.  As a detail-demanding task, image matting aims to obtain pixel-wise transparency to separate the foreground from the background.  The emergence of deep learning further advances image matting recently, researchers have proposed various models to boost the performance and accuracy. However, there still exists a basic problem: the limited number of high-quality alpha mattes.  Therefore, how to maximize the value of limited alpha mattes to support the training of deep matting models has become a fundamental problem, but is seldom probed in the previous work.
+
+
+		We study composition styles in deep image matting, a fundamental procedure that everyone follows by default but is largely overlooked in the literature. A composition style defines a data generation flow or a rule on how to exploit foregrounds, backgrounds, and alpha mattes to form a training dataset. Existing composition styles naively composite foregrounds onto various backgrounds or combine two foregrounds before composition. However, we show that naive foreground combination can be problematic and can generate artifacts in the combined foreground. To solve this, we rethink the rationale behind naive combination and derive a novel formulation to reasonably combine foregrounds. To better use the combined one, we propose a novel composition style, termed triplet-style composition, which establishes an explicit link between the source and combined foregrounds. The link encourages a balanced occurrence frequency of foreground patterns, thus facilitating network training. In addition, we also observe that different orders of foreground combination lead to different foreground patterns, which further inspires a quadruplet-based composition style. 
+
+
+		Results under controlled experiments across three standard baselines demonstrate that our composition styles significantly outperform existing ones and invite consistent, remarkable performance improvement, \textit{e.g.}, $12\sim15\%$ relative error decreases on IndexNet Matting.\\
+	\end{enabstract}
+	
+	%生成目录 \tableofcontents[可选参数]
+	%可选参数：
+	%pagenum=yes/no/true/false 目录是否显示页码，默认为false
+	%toc in toc=yes/no/true/false 目录中是否有目录及其页码，默认为false
+	%level=4 目录级数，默认是4，即显示到subsubsubsection
+	%section indent=0em 目录第一级的缩进，默认是0em
+	%subsection indent=1.5em 目录第二级的缩进，默认是1.5em
+	%subsubsection indent=3.8em 目录第三级的缩进，默认是3.8em
+	%subsubsubsection indent=7em 目录第四级的缩进，默认是7em
+	%paragraph indent=11em 目录第五级的缩进，默认是11em
+	%subparagraph indent=13em 目录第六级的缩进，默认13em
+	%indent=normal/noindent/hustnoindent/sameforsubandsubsub 快速缩进设置，具体见文档
+	%dot sep=4.5 目录点间距，默认4.5
+	%section dot sep=4.5 目录第一级的点间距，默认是4.5
+	%subsection dot sep=4.5 目录第二级的点间距，默认是4.5
+	%subsubsection dot sep=4.5 目录第三级的点间距，默认是4.5
+	%subsubsubsection dot sep=4.5 目录第四级的点间距，默认是4.5
+	%paragraph dot sep=4.5 目录第五级的点间距，默认是4.5
+	%subparagraph dot sep=4.6 目录第六级的点间距，默认是4.5
+	%请注意在合适的位置放置\pagenumbering{numstyle}使用新的页码
+	\tableofcontents
+	
+	\clearpage%结束上一页
+	\pagenumbering{arabic} %正文页码为阿拉伯数字
+	
+	% 第一章 绪论
+	\section{绪论}
+	\subsection{研究背景与意义}
+	图像抠图（Image Matting）是计算机视觉中的一项基本任务。给定一个RGB图像，图像抠图可以通过预测前景蒙版（alpha matte）来得到目标物体，将前景从背景中区分出来。如图~\ref{fig:application}所示，它在图像编辑和视频制作领域发挥着重要作用。
+
+    在深度学习被引进抠图领域前，传统方法被广泛使用。传统的抠图方法可以分为两类：基于采样和基于传播。为了确定一个特定像素的前景和背景的候选颜色，基于采样的算法对已知的前景或背景区域进行采样，然后应用一个指标来评估前景和背景的最佳组合。抠图公式在基于传播的方法中被重新表达，这样，来自已知前景和背景区域的透明度值被传播到未知区域。
+
+    然而，传统方法过度依赖于低阶特征，如颜色等。这一依赖让传统方法无法很好地解决前景和背景颜色相似时的情况。所以研究者们提出是否可以用深度学习来让网络学习到一些更加高阶的特征，例如一些重复的纹理信息，来改变以颜色信息作为主导的抠图。于是，随着DIM~\cite{DIM}提出了第一个端到端的网络，一大批深度学习的方法涌现而来。这些深度学习的方法都需要基于数据集来进行。对于抠图来说，前景蒙版（alpha matte）就是数据集中最重要的一个元素。
+
+    然而，得到一张精确可用于训练的前景蒙版并不是一件简单的事情，如图~\ref{fig:application}所示，前景蒙版需要对图中的每一个像素点标注其透明度值，需要精确到发丝级别。假设图像大小为$1000 \times 1000$，那么这张图中就有$10e^{-6}$个像素点需要得到透明度值。现在广泛使用的一个数据集是Adode Image Matting~\cite{DIM}，这一数据集中仅有$431$张可用的前景。这对于深度学习来说，并不是一个大的数据集，所以，如何在数据有限的情况下对这些数据做出更好的利用，是值得思考和解决的问题。
+    
+    在数据有限的情况下进行训练往往会出现很多问题，例如：产生对训练集的过拟合现象、对一些特定的特征有很强的记忆，从而导致泛化性能变差。现有方法针对过拟合和记忆性等问题，采取了很多数据增强方法通过扩展样本的多样性，破坏网络对一些特征的记忆，来增强其鲁棒性。如mixup~\cite{mixup}以线性插值的方式来构建新的训练样本和标签。
+    
+    但是这些数据增强方法并不是针对图像抠图这一任务提出的，图像抠图任务有着前景蒙版（alpha matte）赋予它的特殊性。那么是否可以针对这一特殊性，为这个任务提供一种更好的学习机制，以增强其泛化能力，同时在数据有限的情况下完成性能的提升。
+	\begin{figure*}[!t]
+		\centering
+		\includegraphics[width=1\linewidth]{figures/application.pdf}\\
+		\caption{抠图的应用场景}
+		\label{fig:application}
+	\end{figure*}
+	
+    
+	\subsection{国内外研究现状}
+	这一节分别介绍深度图像抠图，数据增强方法和图像合成的国内外研究现状。
+	\subsubsection{深度图像抠图}
+	图像抠图在计算机视觉中一直是一个活跃的研究领域，在过去的十几年里取得了飞速进展~\cite{KNN,bayesian,he_global,Comprehensive,closedform,poisson}。最近，深度学习的出现进一步推动了自然图像抠图的发展。一个里程碑式的工作是DIM~\cite{DIM}，它提出了一个端到端的深度图像抠图框架，并收集了一个基准数据集，即Adobe Image Matting。在DIM的启发下，出现了大量的后续工作。
+
+	许多现有的工作都是在改进网络架构以实现图像抠图~\cite{林生佑2007数字抠图技术综述,中文1,中文2,中文3,中文4}。GCA~\cite{GCA}设计了一个有指导意义的上下文注意模块，以传播基于低层次特征的不透明信息。为了恢复微小的细节，IndexNet~\cite{index}和A2U~\cite{A2U}通过预测上下文感知的核，提出了动态上采样算子。为了捕捉长距离的上下文特征，LFPNet~\cite{lfp}提出了中心-周围金字塔集合。最近，TIMI-Net~\cite{timi}试图用一个专门的编码器来挖掘三分图内的信息。这些工作将深度图像抠图提升到了一个新的高度，而他们很少探究网络架构之外的潜在财富。
+
+	一些工作探索了\textbf{训练时}使用的强大的数据增强方法。CA~\cite{CA}使用了许多数据增强方法来提高模型的泛化能力。RMat~\cite{RMat}进一步改进了CA中的数据增强，以提高模型在真实世界图像上的稳定性。而本文深入研究了训练开始前的一个过程，也就是如何合成输入数据以形成训练数据集。
+	
+	
+	\subsubsection{数据增强方法}
+	数据增强是深度学习中广泛使用的一种训练策略，以增加数据的多样性。它提高了深度模型的泛化能力。该策略既有利于高层次的任务，如物体检测~\cite{cutandpaste}，也有利于低层次的任务，如图像增强~\cite{density,uncertainty}和图像抠图~\cite{GCA,A2U}。如前面所述，最近的深度抠图方法~\cite{CA,RMat}采用了一系列的数据增强。
+	
+	这些增强措施包括翻转、裁剪、旋转、抖动、添加噪声~\cite{cutandpaste,har,improving,synthia}等等。它们可以被看作是通用方法，因为不涉及特定任务的设计。
+
+	与现有的主要增强外观多样性的数据增强不同，本文研究的数据合成机制的目的是增加前景模式的多样性。更具体地说，数据合成机制的重点是如何利用现有的模式产生额外的前景模式。值得注意的是，标准的数据增强方法也可以成为本文的数据合成机制的附加部分。
+	
+	\subsubsection{图像合成}
+	图像合成也遵循Eq.~\eqref{eq:matting1}定义的抠图/合成方程。除了常见的应用如背景替换，一系列的工作采用了图像合成的方式，利用其生成合成图像的特性来增加训练数据。例如，Mixup~\cite{mixup}、Cut and Paste~\cite{cutandpaste}和CutMix~\cite{cutmix}被用作数据增强，~\cite{syndata1}和~\cite{syndata2}通过图像合成建立合成数据集。
+
+	在这里，本文利用前景蒙版的优势，将图像合成作为数据合成机制的一个重要组成部分。
+
+	在现有的数据合成机制中， DIM~\cite{DIM}将前景与各种随机背景合成。 SampleNet~\cite{LBSampling}和GCA~\cite{GCA}进一步考虑将两个前景合成到一个背景上。其中，一个新的前景是由两个源前景组成的。然而，本文发现现有的数据合成机制可能是次优的，前景结合背后的隐含信息仍未被发掘，所以本文深入研究了数据合成机制，特别是前景结合。
+
+
+	\subsection{主要研究内容}
+	本文主要研究如何在深度图像抠图中设计有效的数据合成机制，来对现有的有限数据进行最大化利用。
+	大规模的数据集能够为训练深度学习网络提供最充足的学习材料，比如ImageNet~\cite{ImageNet}通过提供超大规模的分类数据集，影响并改变了计算机视觉的研究之路。深度图像抠图这一任务中也是如此。深度图像抠图需要从一个不平衡等式任务中解出前景蒙版$\alpha$
+	\begin{equation}
+	\label{eq:matting1}
+	I = \alpha F+(1-\alpha) B\,,
+	\end{equation}
+	让前景$F$可以从给定的图像$I$的背景$B$中被分离出来。这一方程是极度不平衡的，仅提供图像$I$的信息，但需要从中解出前景$F$，背景$B$和前景蒙版$\alpha$。前景蒙版$\alpha\in[0,1]$代表的是透明度，也就是前景的滤光性，$\alpha$为$0$时，该点为背景； $\alpha$为$1$则表示该点为前景。从这一等式中可以看出，图像抠图需要预测像素点级别的透明度值。因此，高质量、拥有精准标注的前景蒙版对于训练深度图像抠图的模型来说时十分重要的。然而，由于最真实且精确的前景蒙版只能在绿幕或者蓝幕前获得，所以大规模的抠图数据集是很难收集的。到目前为止，只有很少的数据集公开~\cite{DIM,HATT,AIM}，并且这些数据集中只有很有限数量的的高质量前景蒙版。所以，如何将这些有限的高质量前景进行最大化的利用，从而支撑深度图像抠图模型的训练，是一个非常关键且基础的问题。
+
+	一个非常常见的策略，是使用图像合成技术来生成训练样本。图像合成方法，通常是在一种训练数据生成流或合成规则中被使用的工具，来形成训练的数据集。它的执行方式如公式\ref{eq:matting1}所示，将前景和背景通过前景蒙版结合在一起，生成训练图像。为了表述方便，本文将上述训练数据生成流或者合成规则称为数据合成机制。在现有文献中，有两种数据合成机制被广泛使用，它们分别是DIM式合成~\cite{DIM}和GCA式合成~\cite{GCA}。简要来说，DIM式合成使用背景多样性来合成训练样本，将有限的前景合成到非常多的背景上来得到训练集；而GCA式合成进行了更深入的思考，在合成训练样本时提高了前景的多样性。具体来说，GCA式合成不仅将一些通用设计的数据增强方法应用到前景处理中来，例如：随机抖动，随机缩放等；更重要的是，它介绍了一种前景结合~\cite{LBSampling}的过程，通过将两张不同前景结合起来，得到新的结合前景。在这里，为了区分前景-背景合成和前景-前景合成，本文稍微滥用前景结合这个词来指代前景-前景的合成。和通用设计的数据增强方法不同，前景结合提升了前景模式的多样性，而不是仅仅改变了前景外观的多样性。然而，本文发现，GCA式合成种使用的前景结合操作符（Naive-Combination-of-Foreground, $\mathcal{NCF}$）是有一些问题的。它不能过滤掉在不需要区域的噪声，进而在新的结合前景中留下伪影。
+	
+    通过深入探索GCA式合成中使用的前景结合操作符（$\mathcal{NCF}$），本文发现，这种结合方式简单地将两张要进行结合的前景的其中一张视为前景，而另一张视为背景，并没有将视为背景那一张前景的透明度值考虑进去。在这一发现的基础上，本文对前景结合这一过程进行了深入的思考，并且提出了一种新的更加合理的前景结合操作符（Reasonable-Combination-of-Foregrounds, $\mathcal{RCF}$）。与$\mathcal{NCF}$相比，本文提出的$\mathcal{RCF}$则认为，两张前景是按照顺序合成到背景上去的。这一新的前景结合操作符产生了不同的结合前景表示，并且将两张前景的透明度都考虑在内。
+
+	
+	\begin{figure*}[!t]
+		\centering
+		\includegraphics[width=1\linewidth]{figures/summary.pdf}\\
+		\caption{提出方法工作原理}
+		\label{fig:summary}
+	\end{figure*}
+
+    经过更加深入的对结合前景的思考，本文发现，在GCA式合成中，用于结合的两张源前景和结合前景的关系并没有被探索。这一关系最直接的反应就是样本集中前景的出现频率，在之后的章节本文会进行详细分析。为了更好地利用结合前景，本文认为，结合前景和源前景之间是一种父母-孩子的关系，所以，应该在它们之间建立更加直观的连接。通过这一连接，三个相关的样本能够在同一个样本集中绑定出现。进而，本文从两个方面平衡了样本集中的前景分布，1）结合前景和源前景的比例，即前景种类的比例；2）对于一张特定前景，它的出现频率和与它相关的结合前景的出现频率正相关。本文将这一种数据生成流总结成三元组式合成(triplet-style composition)，指训练样本集是由不同的三元组组合而成的。
+
+    同时，本文观察到，在$\mathcal{RCF}$中，不同的结合顺序能得到不同的结合前景，具体来说，能得到不同的前景模式。这两个结合前景有着相同的前景蒙版，但是两者的前景模式不同，这种关系可以被描述为孪生关系。对于此发现，本文意识到，在前景结合的过程中，可以通过交换源前景的结合顺序来增加前景模式。基于此，本文提出了四元组式合成（triplet-style composition），相比于三元组式合成来说，它向三元组中额外添加了一张孪生前景。
+
+    在这一工作中，如图~\ref{fig:summary}所示，本文从三个方向研究了数据合成机制，分别是前景的生成，前景的利用方式，和前景的扩展。技术实现上来说，本文呢引入了$\mathcal{RCF}$来正确结合两张前景，并且提出了两种新颖的数据合成机制。本文在保证公平对比的情况下进行了大量的实验，分别在三个经典的深度图像抠图基线模型上进行了测试。这三个基线模型包括：IndexNet Matting~\cite{index}、A2U Matting~\cite{A2U}、GCA Matting~\cite{GCA}，本文提出的数据合成机制在这三个基线模型上，与之前的数据合成机制相比，表现出了稳定，高效的提升。例如，本文提出的方法在IndexNet Matting上的梯度误差上降低了$12.7\%\sim17.9\%$的相对误差。除此之外，本文提出的方法可以在只使用一半数据集的情况下，取得和其他数据合成机制相当的结果。
+
+    在深度图像抠图领域，本文首次研究样本生成流，并且证明了，精心的设计样本生成流可以大幅度的提升抠图的表现和性能。
+	
+	\subsection{本文组织结构}
+	本文着重研究的是深度图像抠图中的数据合成机制。主要针对现有数据合成机制的不足进行解决，并且这些不足提出两种新的数据合成机制。
+
+	第一章简要介绍了深度图像抠图和数据合成机制的研究背景及意义，并介绍了相关内容的研究现状，包括本文研究的领域——深度图像抠图，数据合成机制相似的分类——数据增强以及数据合成机制的一个工具——图像合成。并且，这一章节简要介绍并且概括了本文的研究内容及结果。
+
+	第二章介绍了深度图像抠图的一个经典网络，以此来介绍深度图像抠图的基本原理和训练流程，以及训练样本的生成。
+
+	第三章总结并且回顾了现有的数据合成机制，包括DIM式合成和GCA式合成。基于分析的现有数据合成机制的不足，提出了两种新颖的数据合成机制——三元组/四元组式合成，最后分析了四种数据合成机制。
+
+	第四章分析了完成的实验，在稳定性、通用性、泛化性等多个方面评估了集中数据合成机制，并且给出了可视化结果。对于提出的数据合成机制，进行了消融实验来探究其工作机理。
+
+	第五章对本篇文章进行了一个总结，分析了创新点，并且分析了目前的缺陷和未来展望。
+
+
+
+    \section{深度图像抠图的基本原理}
+    在这一节中，本文主要介绍深度图像抠图的基本问题设置和样本生成过程。接着，本文介绍复现方法的基本组成模块，训练网络时的损失函数和一些实现细节。
+
+	
+    \subsection{深度图像抠图的问题设置}
+    给定输入图像$I$，需要从中解出前景蒙版$\alpha$，用来将前景$F$和背景$B$分离开来。这个问题是一个极度不平衡的问题，仅仅已知$I$，却要从中解出$F,B,\alpha$。由于$I,F,B$都是三通道的，而$\alpha$是单通道的，于是已知三个参数，要解出余下的七个参数，这是非常困难的。
+    \begin{equation}
+        I_{i}=\alpha_{i} F_{i}+\left(1-\alpha_{i}\right) B_{i} \quad \alpha_{i} \in[0,1]
+    \end{equation}
+    由于这一问题的困难性，三分图(trimap)通常被当作一种额外输入，用来提供一些语义信息。三分图正如其名，一张图中有三种不同的值，分别是$0$，$1$和$0.5$。其中$0$代表该点为绝对背景，$1$代表该点为绝对前景，$0.5$则代表前景和背景之间的过渡区域，是需要着重预测的。
+    在深度学习提出以前，很多方法将这一问题当成是颜色的问题，这些方法通过颜色来区分前景和背景。然而，也正是因为这些方法对颜色的敏感性，它们在前景和背景颜色分布很相近的情况下会失去作用。
+    而通过深度学习，直接通过输入的RGB图像和三分图就可以直接进行端到端的学习，这种学习不会仅仅关注在图像的颜色方面，而是更多地去关注能够对解出前景蒙版$\alpha$有用的特征，例如在预测毛发或网等物体的透明度时，可以更多地去利用它的纹理信息。
+
+    
+
+    
+    \begin{table}[htbp]
+        \small
+        \centering
+        \caption{\centering DIM中不同模块定义表}
+        \label{table:module-definition}
+        \begin{tabular}{lll}
+            \toprule
+            \makecell*[c]{名称} & \makecell*[c]{定义} & \makecell*[c]{模块输入与输出} \\ \bottomrule
+            编码器  & \makecell*[c]{$\mathcal{F}_E$ } & $M_f=\mathcal{F}_E\left( I,T \right)$  \\
+            解码器& \makecell*[c]{$\mathcal{F}_D$ } &$ \alpha_c=\mathcal{F}_D\left( M_f\right)$ \\
+            细节调整模块& \makecell*[c]{$\mathcal{F}_R$ } & $\alpha_r=\mathcal{F}_R\left( I,\alpha_c \right)$  \\
+            \bottomrule
+        \end{tabular}
+    \end{table}
+	\begin{table}[htbp]
+		\small
+		\centering
+		\caption{\centering 输入输出及中间变量符号定义表}
+		\label{table:variable-definition}
+		\begin{tabular}{lll}
+			\toprule
+			\makecell*[c]{名称} & \makecell*[c]{表示}      & \makecell*[c]{定义解释}   \\ \midrule
+			图像                & \makecell*[c]{$I$}       & 三通道RGB图像            \\
+            三分图  & \makecell*[c]{$T$}       & 单通道对应三分图            \\
+			降采样特征图               & \makecell*[c]{$M_f$}     & 由编码器输出的特征图        \\
+			粗前景蒙版              & \makecell*[c]{$\alpha_{c}$}     & 由解码器输出的前景蒙版(alpha matte)预测图      \\
+			精细前景蒙版           & \makecell*[c]{$\alpha_{r}$}     & 由细节调整模块输出的前景蒙版(alpha matte)预测图      \\
+            \bottomrule
+		\end{tabular}
+	\end{table}
+
+
+	\subsection{深度图像抠图中的训练样本}
+	本节简要介绍深度图像抠图中的训练样本是如何得到的，以及数据集能扮演什么样的角色，并介绍了单张样本合成的过程。
+    \subsubsection{深度图像抠图中的数据集}
+    和其他任务的大型数据集相比，抠图任务的真实标注获取是非常困难的。其困难来自于1）需要对每个像素的透明度值进行标注和2）每个像素的透明度是$[0,1]$间的一个值。这一精细的标注能够更加自然地从一张图像中将前景提取出来，同时也表明抠图是一个回归任务。为了提取出前景，将其与背景分离，相比于使用分割这种分类的方式，图~\ref{fig:seg_vs_ma}展示了，对于半透明的物体，使用分割会将背景中的噪声也引入到提取出的前景中。在后续的背景替换任务中，这种方式也以不自然的融合宣告失败。而通过回归透明度的方式提取前景，能够滤除前景中的噪声，从而提取出纯净的前景，方便之后的使用。所以，精确且高精度的前景蒙版在抠图任务中至关重要。然而，虽然高精度的前景蒙版很关键，但是，现在公开数据集中，这样的前景蒙版数量仍然很有限。
+    
+    在这一节中，本文简要回顾深度图像抠图中的数据集。深度图像抠图中的数据集可以分为两种：合成数据集和真实数据集。两种数据集的最大区别是图像的来源。在合成数据集中，数据集不直接提供需要被抠图的RGB图像，而是提供前景，然后将前景合成到背景上来得到RGB图像。而在真实数据集中，待抠图的图像是真实拍摄的。但两种数据集都提供了前景对应的RGB图像和真实前景蒙版（alpha matte）。
+
+    目前公开的大型数据集主要有：Composition-$1$k~\cite{DIM}，Distinction-$646$~\cite{HATT}和AIM-$500$~\cite{AIM}。Composition-1k中含有$431$张为生成训练样本集服务的前景，和$50$张为生成测试样本集服务的前景，这$431$张前景是目前最为广泛使用的训练集前景库。Distinction-$646$和AIM-$500$一般作为测试集进行使用，他们分别含有$646$和$500$张前景。
+	\begin{figure*}[!t]
+		\centering
+		\includegraphics[width=1\linewidth]{figures/seg_vs_matting.pdf}\\
+		\caption{分割和抠图的区别}
+		\label{fig:seg_vs_ma}
+	\end{figure*}
+    
+	\subsubsection{样本合成过程}
+	
+	单张训练样本是由前景和背景通过前景蒙版结合起来得到的。如图~\ref{fig:sample-generation}所示，首先需要得到一张前景$F$和其对应的前景蒙版$\alpha$，以及一张用于合成的背景$B$。则对于每个像素点$i$，都进行以下操作：
+	\begin{equation}
+	\label{eq:matting}
+	I_i = \alpha_i F_i+(1-\alpha_i) B_i\,.
+	\end{equation}
+	对于生成的RGB图像$I$，它通常与三分图（trimap）从通道维度上结合起来，作为一个四通道的输入。这样，一个训练样本$S$就得到了，这一样本将和其他样本一起，组成样本集，供网络进行学习。
+	\begin{figure*}[!t]
+		\centering
+		\includegraphics[width=1\linewidth]{figures/sample-generation.pdf}\\
+		\caption{样本生成过程}
+		\label{fig:sample-generation}
+	\end{figure*}
+	
+
+
+    \subsection{符号定义与解释}
+    从传统图像抠图过渡到深度图像抠图的过程中，出现了一篇可以被称为里程碑的工作——Deep Image Matting（DIM）~\cite{DIM},这一工作首次构建了一个端到端的模型来直接进行前景蒙版（alpha matte）的预测，本文也对这一方法进行了复现。在这一节中，本文简要介绍复现方法的主要模块以及运作原理。本文在表~\ref*{table:variable-definition}和表~\ref*{table:module-definition}中分别进行模块的定义和变量的定义。
+    
+
+
+    \subsection{网络结构}
+    本节将会详细介绍本文复现方法的网络结构，包括每一个网络模块及它们的工作模式。
+    
+    方法的基本原理图如图~\ref{fig:network}所示，整个模型的输入为一张四通道的图像块，图像块由RGB图像和三分图（trimap）拼接而成，这一拼接图像块送入编码器$\mathcal{F}_{E}$后，得到降采样特征图$\mathcal{M}_f$。接着降采样特征图$\mathcal{M}_f$将被送入解码器$\mathcal{F}_{D}$，输出一张粗略的前景蒙版预测图$\alpha_c$。这张粗预测图$\alpha_c$将和原始的RGB图进行连接，一起送入细节调整模块$\mathcal{F}_R$进行细节的修复。经过细节调整模块后，输出预测出的精细前景蒙版$\alpha_r$。
+	
+	\begin{figure*}[!t]
+		\centering
+		\vspace{10pt}
+		\includegraphics[width=1\linewidth]{figures/network.pdf}\\
+		\caption{网络的基本原理图}
+		\label{fig:network}
+	\end{figure*}
+   
+	\subsubsection{编码器}
+    网络的输入是一个四通道的图像块，由$I$和$T$拼接组成，其中，前三个通道是RGB图，最后一个通道是该图像块对应的trimap。将其输入进编码器$\mathcal{F}_{E}$，然后得到特征编码结果$M_{f}$。如图~\ref{fig:encoder}所示，编码器含有$14$个卷积层，下采样环节由$5$个最大池化层来完成。将输入的图像从空间尺寸上下降$32$倍。假设输入的图像块为大小为$I \in \mathbb{R}^{H \times W}$，那么编码器$\mathcal{F}_{E}$输出的特征图大小为$M_{f} \in \mathbb{R}^{\frac{H}{32} \times \frac{W}{32}}$。本文采用VGG$16$~\cite{VGG}网络的前十四个卷积层作为特征提取模块。本文使用在ImageNet~\cite{ImageNet}上预训练的VGG$16$网络参数对编码器进行初始化，能够有效降低训练难度。值得注意的是，由于VGG$16$原来是为分类任务设计，它的预训练参数与抠图任务的需要有一点不同，体现在输入的通道上。分类任务的输入是三通道输入，而图像抠图任务的输入是四通道输入，于是，本文将第四层的预训练参数填为全$0$。
+    
+	\begin{figure*}[!t]
+		\centering
+		\includegraphics[width=1\linewidth]{figures/encoder.pdf}\\
+		\caption{编码器的结构设置}
+		\label{fig:encoder}
+	\end{figure*}
+
+    \subsubsection{解码器}
+    解码器$\mathcal{F}_{D}$用于将得到的特征恢复到原来的空间结构，并且得到需要的粗前景蒙版输出$\alpha_c$。解码器通过使用反池化层和卷积层来对特征图 $M_{f}$进行上采样。如图~\ref{fig:decoder}所示，解码器有$5$次反池化操作，将特征图大小恢复到原来的$H \times W$。池化操作后都接着一个卷积和ReLU的组合层。值得注意的是，最后一层卷积并没有ReLU层。
+
+	\begin{figure*}[!t]
+		\centering
+		\includegraphics[width=1\linewidth]{figures/decoder.pdf}\\
+		\caption{解码器的结构设置}
+		\label{fig:decoder}
+	\end{figure*}
+
+    \subsubsection{细节调整模块}
+    由于前景蒙版(alpha matte)是由下采样的特征图恢复上来的，而下采样会更注重语义信息，从而丢失掉一些细节信息，而这些丢失的细节信息，对于图像抠图这一任务来说非常重要。所以，需要补充细节信息来得到更加精细的前景蒙版。于是引入了细节调整模块。
+
+    细节调整模块的输入由两种特征连接而成，一是预测出的粗前景蒙版$\alpha_c$，二是原始RGB图像$I$。原始RGB图像中含有经下采样之后损失的细节信息，作为补充信息加入。连接后的特征经过三个卷积和ReLU的组合层后，最后经过一个单独的卷积层得到最终的细化前景蒙版$\alpha_r$。
+    
+    \subsection{损失函数}
+    在这一节中，本文详细介绍DIM模型训练时用于监督的损失函数，包括前景蒙版预测损失函数和前景蒙版合成损失函数。
+    \subsubsection{前景蒙版预测损失函数（alpha prediction loss）}
+    第一个使用的损失函数时前景蒙版预测损失函数（alpha prediction loss），这一损失函数计算的是预测的前景蒙版（predicted alpha matte）和真实前景蒙版（ground-truth alpha matte）间的绝对误差值。在这里，将预测的前景蒙版表示为$\alpha^p$，真实的前景蒙版则表示为$\alpha^g$。对于每一个像素，应计算它们误差的绝对值。对于像素点$i$来说，先从预测的前景蒙版$\alpha^p$中取出该点的预测值$\alpha^p_i$，再从真实的前景蒙版$\alpha^g$中取出该点的预测值$\alpha^g_i$。按理说应该用$|\alpha^g_i-\alpha^p_i|$来计算该点的误差值，但是由于绝对值不具有微分的特性，无法利用神经网络进行反向传播，所以使用平方和根号的组合形式，来表示这个绝对值误差。对于一个像素点来说，它的前景蒙版预测误差值可以被表示为：
+    \begin{equation}
+        \mathcal{L}_{\alpha}^{i}=\sqrt{\left(\alpha_{p}^{i}-\alpha_{g}^{i}\right)^{2}+\epsilon^{2}}, \quad \alpha_{p}^{i}, \alpha_{g}^{i} \in[0,1]\,.
+    \end{equation}
+    该损失函数是可导的的，损失函数$\mathcal{L}_{\alpha}^{i}$对于像素$i$预测的前景蒙版$\alpha^p_i$的导数为：
+    \begin{equation}
+        \frac{\partial{\mathcal{L}^i_{\alpha}}}{\partial{\alpha^i_{p}}}=\frac{\alpha_{p}^{i}-\alpha_{g}^{i}}{\sqrt{\left(\alpha_{p}^{i}-\alpha_{g}^{i}\right)^{2}+\epsilon^{2}}}\,.
+    \end{equation}
+    其中$\epsilon$是为了防止分母为$0$的状况的出现，在这里将其设置为$10e^{6}$。
+    这一方法利用了三分图（trimap）提供的语义信息，由于三分图中已经给出绝对前景和绝对背景的区域，所以只有过渡区域是需要进行预测的。在用损失函数进行监督时，也只需要对过渡区域的预测进行监督。
+    假设三分图中，有$N$个像素点作为过渡区域存在，那么就对这N个像素点计算误差，将误差相加后计算平均值：
+    \begin{equation}
+        \mathcal{L}_{\alpha}=\frac{1}{N}\sum_{i=1}^{N} \sqrt{\left(\alpha_{p}^{i}-\alpha_{g}^{i}\right)^{2}+\epsilon^{2}}\,,
+    \end{equation}
+    以上就得到了对于这一方法中使用的三分图过渡区域的前景蒙版误差损失函数。
+
+    \subsubsection{前景蒙版合成损失函数（compositional loss）}
+    第二个使用的损失函数是前景蒙版合成损失函数，这一损失函数在DIM中第一次被提出。这一损失函数主要是针对合成的RGB图和真实的RGB图之间的差异，对前景蒙版进行更新。合成的RGB图是指，真实前景和真实背景通过预测的前景蒙版（predicted alpha matte, $\alpha_p$）结合起来。假设用$F_g$和$B_g$分别代表真实的前景和真实的背景，那么合成的RGB图$I_p$由以下等式结合得到：
+    \begin{equation}
+        I_p^i = \alpha_p^i*F_g^i+(1-\alpha_p^i)*B_g^i
+    \end{equation}
+    而真实的RGB图$I_g$由真实前景蒙版$\alpha_p$将真实前景和真实背景结合起来得到：
+    \begin{equation}
+        I_g^i = \alpha_g^i*F_g^i+(1-\alpha_g^i)*B_g^i
+    \end{equation}
+    对于两者的每一个通道，都进行一次误差计算。如果令$c$代表R,G,B通道，$c_p$代表该通道的值来自于$I_p$，$c_g$代表该通道的值来自于$I_g$，那么对于每一个通道中每一个像素$i$，都计算它们误差的绝对值。即：
+    \begin{equation}
+        \mathcal{L}_{c}^{i}=\sqrt{\left(c_{p}^{i}-c_{g}^{i}\right)^{2}+\epsilon^{2}}
+    \end{equation}
+    假设三分图中，有$N$个像素点作为过渡区域存在，那么就对这N个像素点计算误差，将误差相加后计算平均值：
+    \begin{equation}
+        \mathcal{L}_{c}=\frac{1}{3 \times N}\sum_{c=R,G,B}\sum_{i=1}^{N}\sqrt{\left(c_{p}^{i}-c_{g}^{i}\right)^{2}+\epsilon^{2}}
+    \end{equation}
+    以上就得到了对于这一方法中使用的三分图过渡区域的前景蒙版合成损失。这一损失函数让网络学习合成规则，帮助预测更加精细的前景蒙版。
+    
+    \subsubsection{总损失函数}
+    在此方法中，本文使用加权损失函数，对前景蒙版预测损失函数$\mathcal{L}_{\alpha}$和前景蒙版合成损失函数$\mathcal{L}_{c}$进行加权作为总损失函数。总损失函数可以被写为以下形式：
+    \begin{equation}
+        \mathcal{L}_{\text {overall }}=w_{l} \cdot \mathcal{L}_{\alpha}+\left(1-w_{l}\right) \cdot \mathcal{L}_{c}\,.
+    \end{equation}
+    在这里$w_{l}$被设置为$0.5$。
+    
+    \subsection{实现细节}
+    这一小节中主要介绍DIM模型的实现细节。实现细节包括网络的训练策略，实验环境和参数设置。
+    \begin{figure*}[!t]
+		\centering
+		\includegraphics[width=1\linewidth]{figures/trimap-dilation.pdf}\\
+		\caption{三分图的生成过程}
+		\label{fig:trimap_dilation}
+	\end{figure*}
+    \subsubsection{三分图的生成}
+    三分图，作为一个非常重要的语义补充信息，在图像抠图任务中发挥了非常重要的作用。三分图顾名思义，一张图中有三种不同的值。如图~\ref*{fig:trimap_dilation}所示，黑色代表绝对背景，白色代表绝对前景，灰色则表示过渡区域，是需要预测的地方。三分图，一般是由用户指定或者是由真实前景蒙版生成而来。用户指定三分图，即为用户标出需要神经网络预测的地方和给定前景和背景的提示。而如果是由真实前景蒙版生成而来，则可分为四个步骤。第一步，找出前景蒙版中所有$\alpha=1$的点，确定为绝对前景遮罩。第二步，找出前景蒙版中所有$\alpha=0$的点，确定为绝对背景遮罩。第三步，确定三分图的膨胀系数，即确定绝对前景遮罩和绝对背景遮罩的腐蚀系数。第四步，对绝对前景区域和绝对背景区域进行腐蚀，剩下的区域定义为过渡区域。所以，如图~\ref*{fig:trimap_dilation}所示，三分图膨胀系数越大，即对绝对前景和绝对背景区域的腐蚀更多，剩下更多的过渡区域。
+
+    \subsubsection{训练策略}
+    该网络可以被分为两个部分，其中第一个部分是由编码器$\mathcal{F}_E$和解码器$\mathcal{F}_D$组成的编码-解码结构，第二个部分是由细节调整模块$\mathcal{F}_R$。在训练过程中，先只训练编码-解码结构。其中，编码-解码结构使用加权损失函数进行训练。在编码-解码结构训练达到稳定，指损失函数达到基本收敛时，停止训练编码-解码结构。在冻结编码-解码结构的参数后，开始训练细节调整模块，此时编码-解码结构的参数不再更新。与编码-解码结构使用加权损失函数进行训练不同，细节调整模块仅仅使用其中之一的前景蒙版预测损失函数进行训练，并且更新参数。在这一模块的损失函数接近收敛之后，解冻编码-解码结构的参数。此时，两个模块同时进行训练。在损失函数收敛后，模型训练完成。
+    
+    \subsubsection{实现背景和训练参数设置}
+    本文的实现基于$\tt{Pytorch}$~\cite{paszke2019pytorch}，本文在这个框架下编写了代码，并且复现了结果。该文章使用了三种数据增强方式，分别是随机裁剪，随机翻转和三分图膨胀生成。其中，随机裁剪方式有两种。第一种随机裁剪方式是以三分图中过渡区域为中心裁剪一个$320 \times 320$区域。第二种随机裁剪方式是使用不同大小的裁剪框裁剪（例如：$480 \times 480$，$640 \times 640$），然后将它们缩放至$320 \times 320$，这一操作能够让本文的方法对不同大小的图像更加稳定，让网络更好地学习。随机翻转以$0.5$的概率使用，将样本进行水平翻转或垂直翻转。三分图膨胀生成则是指，三分图的膨胀率是随机设置的，这样，网络能够对不同的三分图保持一定的稳定性。
+    整个网络是一个二阶段训练，训练所用的优化器是Adam优化器~\cite{adam}，其中，两个阶段的学习率都被设置为一个很小的数，即为$10^{-5}$。
+    在测试阶段，给定一张RGB图像和与之对应的三分图（trimap），本文首先将它们从通道维度上连接起来送入编码-解码结构，得到一张粗略的预测前景蒙版（coarse predicted alpha matte），然将这张预测的前景蒙版和RGB图像从通道维度上连接起来，送入细节调整模块，得到最终的细化预测前景蒙版（refined predicted alpha matte）作为输出。
+
+    
+    
+	
+	\section{数据合成机制探索}
+	\label{sec:proposed}
+	本文首先对现有常用的数据合成机制——DIM式合成和GCA式合成进行了回顾。虽然DIM式合成和GCA式合成有效，且目前被广泛使用，但本文发现它们存在特定缺陷。因而，它们只能是次优的合成方式。本文首先通过一些分析，来说明为什么它们的存在缺陷。在分析完它们的缺陷之后，本文说明了如何解决这些缺陷，并且提出了新颖的数据合成机制。
+
+	\subsection{现有数据合成方法回顾}
+    在这一节中，本文主要回顾现在被广泛使用的数据合成机制。人工标注的前景蒙版数量稀少，造成了数据的多样性缺乏问题。在这一背景下，基本所有的深度图像抠图模型都在合成数据集上训练。本文查阅了公开文献，发现两种数据合成机制——DIM式合成~\cite{DIM}和GCA式合成~\cite{GCA}被广泛使用。在本文介绍提出的数据合成机制之前，先对这两种数据合成机制进行回顾。
+    
+
+	\begin{table*}[htbp]
+		%   \caption{Notations of Parameters}\vspace{-10pt}
+		  \caption{数据合成机制中的符号定义}
+		  \setstretch{1.2}
+		  \small
+		  \centering 
+		  \label{tab:notations}
+		  \begin{tabular}{cc}
+			\toprule
+			% Notation & Remarks \\
+			符号 & 描述 \\
+			\midrule
+			$\mathcal{S}$ & 样本集 \\
+			$\mathcal{F}$ & 前景集 \\
+			$\mathcal{B}$ & 背景集 \\
+			$\mathcal{A}$ & 前景蒙版集\\
+			\midrule
+			$F$ & 单张前景 \\
+			$\alpha$ & 单张前景蒙版\\
+			$B$ & 单张背景\\
+			$F_{AB}$ & $F_{A}$和$F_{B}$的结合前景\\
+		  \bottomrule
+		\end{tabular}
+	\end{table*}
+
+    \subsubsection{符号定义与解释}
+	在这一节中，本文定义了一些在数据合成机制中经常使用的符号。其中前景集$\mathcal{F}$代表可供使用的不同前景的集合，而前景蒙版集$\mathcal{A}$中存放着与前景集$\mathcal{F}$中对应的前景蒙版。背景集$\mathcal{B}$代表可供挑选的背景，通常背景集的内容非常多。前景集和背景集示意图如图~\ref{fig:fore-back-pool}所示。
+	
+	更加细化地，本文定义$F$为单张前景，如果$F$下标只有一个字母，代表它是直接从前景库中选择而来，例如$F_A$和$F_B$。而如果$F$下标有两个字母，则代表它是由两张前景组合而来，生成的结合前景，下标的字母代表着组合的来源。比如，$F_{AB}$代表这是一张结合前景，且是由$F_A$和$F_B$组合而来。
+	
+	\begin{figure*}[!t]
+		\centering
+		\includegraphics[width=1\linewidth]{figures/fore-back-pool.pdf}\\
+		\caption{前景集和背景集}
+		\label{fig:fore-back-pool}
+	\end{figure*}
+	\subsubsection{DIM式合成}
+	DIM式合成是第一个将合成数据集引入深度图像抠图的尝试，DIM式合成~\cite{DIM}实现了一种简单的数据合成机制。对于每一张前景，它将其与$N$张背景进行合成。具体地，对于每一次结合，它将一张从前景集中选出来的前景$F\in\mathcal{F}$与一张从背景集中选出来的随机背景$B\in\mathcal{B}$通过前景蒙版$\alpha$来得到一个样本。这个过程可以被描述为$S\leftarrow \mathcal{COMP}(F, \alpha, B)$。其中$\mathcal{COMP}$是一个操作符，这个操作符实现了~\ref{eq:matting1}中的前景背景结合操作。DIM式合成中，样本的多样性式靠变换不同背景来得到的，可是，这样做并没有抓住问题的根本。DIM式合成被总结在了算法~\ref{alg:dim-style}中。
+
+	\begin{algorithm}[!t]
+		\setstretch{1.2}
+		\caption{DIM式合成} 
+		\label{alg:dim-style} 
+		\begin{algorithmic}
+		\REQUIRE 前景集 $\mathcal{F}$, 前景蒙版集 $\mathcal{A}$, 和背景集 $\mathcal{B}$
+		\ENSURE 样本集 $\mathcal{S}$
+		\STATE 初始化 $\mathcal{S}\leftarrow\{\}$
+		\FOR {每一个 $(F,\alpha) \in (\mathcal{F},\mathcal{A})$}
+			\FOR {$i=1,...,N$}
+			\STATE 随机挑选 $B\in\mathcal{B}$
+			\STATE $S\leftarrow \mathcal{COMP}(F,\alpha,B)$
+			\STATE $\mathcal{S}\leftarrow \mathcal{S} \cup \{S\}$ \textcolor{mygreen}{// 将 $S$ 包含进 $\mathcal{S}$}
+			% \STATE $\mathcal{B}\leftarrow\mathcal{B}\setminus \{B\}$ \textcolor{mygreen}{// remove $B$ from $\mathcal{B}$}
+			\ENDFOR
+		\ENDFOR
+		\end{algorithmic}
+	\end{algorithm}
+	
+	\subsubsection{GCA式合成}
+	受到SampleNet~\cite{LBSampling}的启发，GCA式合成~\cite{GCA}引入了一个前景结合的选择，来增加前景多样性。前景结合的这一选择，指的是将两张前景以一定概率$p$混合来得到一张新的前景的操作。形式上来说，给定两张前景$F_1$和$F_2$以及它们对应的前景蒙版$\alpha_1$和$\alpha_2$，一张新的前景$F_{\mathrm{new}}$和一张新的前景蒙版$\alpha_\mathrm{{new}}$将可以由抠图基本公式~\ref{eq:matting1}得到。由于该公式是将前景和背景进行结合，GCA式合成将$F_1$当作前景，相应地将$F_2$当作式背景，然后将其通过$F_1$的前景蒙版$\alpha_1$进行合成。本文定义了一个前景结合操作符$\mathcal{NCF}$（Naive Combination of Foregrounds）来描述这一过程。
+	\begin{equation}
+		(F_{\mathrm{new}},\alpha_{\mathrm{new}})\leftarrow\mathcal{NCF}(F_1,\alpha_1,F_2,\alpha_2)\,,
+	\end{equation}
+	在这里
+	\begin{align}
+		\label{eq:f_new_gca}
+		&F_{\mathrm{new }}=\alpha_{1}F_1 + (1-\alpha_{1})F_2\,,\\
+		\label{eq:alpha_new_gca}
+		&\alpha_{\mathrm{new }}=1-(1-\alpha_{1})(1-\alpha_{2})\,.
+	\end{align}
+	与DIM式合成相似，样本$S$是由随机挑选的前景$F$和背景$B$合成的。但在GCA式合成中，前景$F$有$p=0.5$的概率来与另一张前景$F_2$结合，这一结合过程是由$\mathcal{NCF}$操作的。$F_2$是随机选取的，但是需要保证它与$F$不一样。整个GCA式合成的过程，被总结在了算法~\ref{alg:gca-style}中。
+
+	\begin{algorithm}[!t] 
+		\caption{GCA式合成} 
+		\setstretch{1.2}
+		\label{alg:gca-style} 
+		\begin{algorithmic}
+		\REQUIRE 前景集 $\mathcal{F}$, 前景蒙版集 $\mathcal{A}$, and 背景集 $\mathcal{B}$
+		\ENSURE 有 $M$ 个样本的样本集 $\mathcal{S}$ 
+		\STATE 初始化 $\mathcal{S}\leftarrow\{\}$
+		\FOR {$i=1,...,M$}
+			\STATE 随机选择 $B\in\mathcal{B}$ and $(F_1,\alpha_1) \in (\mathcal{F},\mathcal{A})$
+			\STATE 随机化 $p\in[0,1]$
+			\STATE \textcolor{mygreen}{//以$0.5$的概率进行前景结合}
+			\IF{$p<0.5$} 
+			\STATE 额外选择 $(F_2,\alpha_2) \in (\mathcal{F},\mathcal{A})$
+			\STATE $(F_{\mathrm{new}},\alpha_{\mathrm{new}})\leftarrow \mathcal{NCF}(F_1,\alpha_1,F_2,\alpha_2)$
+			\textcolor{mygreen}{// 将 $F_1$ 与 $F_2$进行前景结合}
+			\STATE $S\leftarrow \mathcal{COMP}(F_{\mathrm{new}},\alpha_{\mathrm{new}},B)$ 
+			\ELSE   
+			\STATE $S\leftarrow \mathcal{COMP}(F_1,\alpha_1,B)$
+			\ENDIF
+			\STATE $\mathcal{S}\leftarrow \mathcal{S} \cup \{S\}$ \textcolor{mygreen}{// 将 $S$ 包含进 $\mathcal{S}$}
+		\ENDFOR
+		\end{algorithmic}
+	\end{algorithm}
+
+	\begin{figure*}[!t]
+		\centering
+		\vspace{10pt}
+		\includegraphics[width=1\linewidth]{figures/ncf_composition.pdf}\\
+		\caption{两种不同的前景结合操作符产生的结合前景和前景-背景合成结果}
+		\label{fig:ncf-composition}
+	\end{figure*}
+
+	\subsection{前景结合分析}
+	
+	\label{ssec:analysis}
+	由于独特的前景数量是非常少的，如何最大化地利用这些有限的前景是减少过拟合风险的关键。为了回答这个问题，GCA式合成将两张前景$F_1$和$F_2$结合起来，来产生一张新的前景$F_\mathrm{new}$和一张新的前景蒙版$\alpha_\mathrm{new}$。
+
+	本文同意GCA式合成对于$\alpha_\mathrm{new}$的表示，但是本文在$F_\mathrm{new}$的表示上和GCA式合成持有不同的意见。如公式~\ref{eq:f_new_gca}所示，仅有$\alpha_1$是有作用的，$\alpha_2$的作用在其中完全没有体现出来。以此为出发点，本文重新思考了前景结合过程，从两阶段的角度来分析了这一过程。通过这一分析，本文得到了一个更加合理的对于$F_\mathrm{new}$的建模表示，这一建模表示中$\alpha_1$和$\alpha_2$的作用都被考虑进来。
+
+	\begin{figure*}[!t]
+		\centering
+		\includegraphics[width=1\linewidth]{figures/rcf.pdf}\\
+		\caption{$\mathcal{RCF}$提出的两阶段前景结合过程}
+		\label{fig:rcf}
+	\end{figure*}
+
+	如图~\ref{fig:rcf}所示，在第一阶段，本文将一张前景，$F_2$，与背景$B$结合来形成一张暂时的背景$B_{\mathrm{tmp}}$：
+	\begin{equation}
+		B_{\mathrm{tmp}}=\alpha_2F_2 + (1-\alpha_2)B\,.
+	\end{equation}
+	在第二阶段，本文将前景$F_1$叠加到这张暂时的背景$B_{\mathrm{tmp}}$上，来生成最终的合成结果$I_\mathrm{new}$：
+	\begin{equation}
+		\begin{aligned}
+		\label{eq:I_new_ours}
+		I_{\mathrm{new}} &=\alpha_{1} F_{1}+\left(1-\alpha_{1}\right)B_{\mathrm{tmp}}\\
+		&=\alpha_{1} F_{1}+\left(1-\alpha_{1}\right)\left[\alpha_{2} F_{2}+\left(1-\alpha_{2}\right) B\right] \\
+		&=\alpha_{1} F_{1}+\left(1-\alpha_{1}\right) \alpha_{2} F_{2}+\left(1-\alpha_{1}\right)\left(1-\alpha_{2}\right) B\,.
+		\end{aligned}
+	\end{equation}
+	已知图像的合成公式~\ref{eq:matting1}，这一公式适用于每一张图像。那么对于新生成的$I_\mathrm{new}$也适用这样的规律，可以将其表示为：
+	\begin{equation}
+		I_{\mathrm {new }}=\alpha_{\mathrm {new }} F_{\mathrm {new }}+\left(1-\alpha_{\mathrm {new }}\right) B\,,
+	\end{equation}
+	那么，通过对比两个$I_{\mathrm {new }}$的表示，可以推出以下结果：
+	\begin{align}
+		\label{eq:fgcom}
+			\begin{cases}
+			\alpha_{\mathrm {new}} F_{\mathrm {new }}&=\alpha_{1} F_{1}+(1-\alpha_{1}) \alpha_{2} F_{2}\,,\\
+			1-\alpha_{\mathrm {new}}&=(1-\alpha_{1})(1-\alpha_{2}) \,.
+			\end{cases}
+	\end{align}
+	那么给定~\ref{eq:fgcom}，本文可以定义一个新的前景结合操作符$\mathcal{RCF}$（Reasonable Combination of Foregrounds），这一操作符能够在给定两张前景的条件下，得到更加合理的结合前景表示：
+	\begin{equation}
+		(F_{\mathrm{new}},\alpha_{\mathrm{new}})\leftarrow\mathcal{RCF}(F_1,\alpha_1,F_2,\alpha_2)\,,
+	\end{equation}
+	在这里
+	\begin{align}
+		&F_{\mathrm {new }}=\frac{\alpha_{1} F_{1}+\left(1-\alpha_{1}\right) \alpha_{2} F_{2}}{\alpha_{\mathrm {new }}+\epsilon}\,,\\
+		&\alpha_{\mathrm {new }}=1-\left(1-\alpha_{1}\right)\left(1-\alpha_{2}\right)\,,
+	\end{align}
+	其中$\epsilon$被设置为一个很小的值（例如$10e^{-6}$）来防止分母为$0$的情况。和$\mathcal{NCF}$相比，本文的$\mathcal{RCF}$产生的合成结果更加合理，因为$\alpha_1$和$\alpha_2$的信息都被考虑到。如图~\ref{fig:ncf-composition}所示，$\alpha_2$能够滤除$F_2$中的噪声，就是背景中的黑色皮革纹理。这个噪声主要来自于数据集中自带的一些噪声，前景蒙版可以帮助在使用的时候过滤掉这些噪声。如果没有$\alpha_2$，$F_2$中的伪影会进入到最终的结合前景中。在本文的合成结果中，两道光影看得更加清楚，而$\mathcal{NCF}$的光影却只有一道比较清晰，这是由于黑色皮革的信息被引入，影响了原有的前景模式。由于结合前景中的噪声，可见的背景变少了，这也就意味着红框框出的区域的透明度变低。然而，真实的前景蒙版中透明度值却没有随着改变，造成了训练过程中的不匹配监督。这种不匹配的监督可能会使网络感到困惑，进而在一些透明度值高的区域预测出低的透明度。
+	\begin{figure*}[!t]
+		\centering
+		\includegraphics[width=1\linewidth]{figures/source-and-com.pdf}\\
+		\caption{前景结合过程中的源前景和结合前景}
+		\label{fig:source-com}
+	\end{figure*}
+	\subsection{三元组式合成}
+	在上一节中，本文详细分析了$\mathcal{NCF}$和$\mathcal{RCF}$的机制，这两种用来生成结合前景的操作符。在生成完结合前景之后，源前景提供的先验知识，在GCA式合成中，是没有被利用起来的。例如，如图~\ref{fig:source-com}所示，两张源前景结合成了一张结合前景。源前景中有两种特别简单的纹理结构，但是，如果网络没有充分地学习到它们的信息，当面对结合前景中的复杂纹理时，将会束手无策。为了解决这一问题，本文认为，结合前景和源前景之间的关系需要被直接地建立起来。本文可以使用一个比喻来解释着背后的道理。当一个孩子出生时，父母的信息也要被一同记录，然后他们可以成为了一个家庭。如果将两张源前景视为父母的话，结合前景就可以被当作是孩子，他们需要被直接地连接起来。对于结合前景来说，源前景可以提供一些基础的纹理信息，帮助简化和分析复杂纹理；而对于源前景来说，将结合前景与之绑定在一起，可以帮助学习结合规则，例如：单眼皮父母只能生出单眼皮孩子。这样，结合前景和源前景都可以受益于这一连接。
+
+	然后，以前的工作~\cite{GCA,DIM}切断了这一连接，忽略了源前景和结合前景之间的互补关系，这样两张前景用于生成样本时，仅得到了一个样本。为了重新连接这一关系，本文提出了一种新颖的合成机制，成为三元组式合成，这一合成机制将源前景和结合前景都同时包括进来。给定$(F_1, \alpha_1)$和$(F_2, \alpha_2)$，以及两张随机背景$B_1$和$B_2$，本文首先使用合成公式~\ref{eq:matting1}得到两个基于源前景的样本。然后本文使用$\mathcal{RCF}$生成一张新的结合前景和前景蒙版，$(F_{\mathrm{new}},\alpha_{\mathrm{new}})\leftarrow \mathcal{RCF}(F_1,\alpha_1,F_2,\alpha_2)$，生成的$F_{\mathrm{new}}$最终会与$B_1$或$B_2$进行合成生成第三个样本。三元组式合成被总结在了算法~\ref{alg:tri-style}中。
+
+	与GCA式合成使用两张前景却只生成一个样本的做法相比，本文提出的三元组式合成生成了三个彼此相关的样本。三元组式合成作为一个基础，自然地引出了四元组式合成。
+	\begin{algorithm}[!t] 
+		\caption{三元组式合成} 
+		\setstretch{1.2}
+		\label{alg:tri-style} 
+		\begin{algorithmic}
+		\REQUIRE 前景集 $\mathcal{F}$, 前景蒙版集 $\mathcal{A}$, and 背景集 $\mathcal{B}$
+		\ENSURE 有 $M$ 个样本的样本集 $\mathcal{S}$ 
+		\STATE 初始化 $\mathcal{S}\leftarrow\{\}$
+		\FOR {$i=1,...,M\%3$}
+			\STATE 随机选择 $B_1\in\mathcal{B}$, $B_2\in\mathcal{B}$
+			\STATE 随机选择 $(F_1,\alpha_1)\in (\mathcal{F},\mathcal{A})$, $(F_2,\alpha_2) \in (\mathcal{F},\mathcal{A})$
+			\STATE $S_1\leftarrow \mathcal{COMP}(F_1,\alpha_1,B_1)$ \textcolor{mygreen}{// the 1-st sample}
+			\STATE $S_2\leftarrow \mathcal{COMP}(F_2,\alpha_2,B_2)$ \textcolor{mygreen}{// the 2-nd sample}
+			\STATE \textcolor{mygreen}{// 前景结合}
+			\STATE $(F_{\mathrm{new}},\alpha_{\mathrm{new}})\leftarrow \mathcal{RCF}(F_1,\alpha_1,F_2,\alpha_2)$
+			\STATE 随机化 $p\in[0,1]$
+			\IF {$p<0.5$} 
+			\STATE $S_3\leftarrow \mathcal{COMP}(F_{\mathrm{new}},\alpha_{\mathrm{new}},B_1)$ \textcolor{mygreen}{// the 3-rd sample}
+			\ELSE
+			\STATE $S_3\leftarrow \mathcal{COMP}(F_{\mathrm{new}},\alpha_{\mathrm{new}},B_2)$ \textcolor{mygreen}{// the 3-rd sample}
+			\ENDIF
+			\STATE $\mathcal{S}\leftarrow \mathcal{S} \cup \{S_1,S_2,S_3\}$
+			\textcolor{mygreen}{// 将 $3$个样本加入样本集$\mathcal{S}$}
+		\ENDFOR
+		\end{algorithmic}
+	\end{algorithm}
+
+
+	
+	
+	\subsection{四元组式合成}
+	三元组式合成在父母和孩子之间通过利用源前景地信息地方式，建立起了连接。然而，本文想要探究，\textbf{是否一张结合前景就是两张源前景能带来的最大数据多样性。}有趣的是，本文发现，结合前景可以有一个孪生前景，因而可以产生一个双胞胎一样的存在来形成四元组。
+
+	孪生前景是由一个发现得到的，这一发现是，如果交换两张前景的结合顺序，产生的结合前景将会有不同的表现。具体来说：
+
+	\begin{equation*}
+		\label{assert}
+		F_{1} \text{ overlay } F_{2} \neq F_{2} \text { 		overlay } F_{1}\,.
+	\end{equation*}
+
+	这一结果可以用反证法证明。假设上述式子不成立，即为$F_{1} \text { overlay } F_{2} = F_{2} \text { overlay } F_{1}$，那么根据等式~\eqref{eq:fgcom}中对于$F_{\text{new}}$的定义，很容易得到：
+	\begin{equation*}
+		\frac{\alpha_{1} F_{1}+\left(1-\alpha_{1}\right) \alpha_{2} F_{2}}{1-\left(1-\alpha_{1}\right)\left(1-\alpha_{2}\right)+\epsilon} =\frac{\alpha_{2} F_{2}+\left(1-\alpha_{2}\right) \alpha_{1} F_{1}}{1-\left(1-\alpha_{1}\right)\left(1-\alpha_{2}\right)+\epsilon}\,.
+	\end{equation*}
+	由于$\alpha_{\mathrm{new}}=1-\left(1-\alpha_{1}\right)\left(1-\alpha_{2}\right)$在等式左右两边都是一样的值，不受影响，$F_1$和$F_2$必须满足：
+	\begin{equation}
+		\begin{aligned}
+		\alpha_{1} F_{1}+\alpha_{2} F_{2}-\alpha_{1} \alpha_{2} F_{2} &=\alpha_{2} F_{2}+\alpha_{1} F_{1}-\alpha_{1} \alpha_{2} F_{1} \\
+		F_{1} &=F_{2}\,.
+		\end{aligned}
+	\end{equation}
+
+	\begin{figure*}[!t]
+		\centering
+		\includegraphics[width=1\linewidth]{figures/shared_alpha.pdf}\\
+		\caption{四元组中的结合前景和前景蒙版}
+		\label{fig:shared}
+	\end{figure*}
+
+	从上述等式中，很容易看出，$F_{1} \text { overlay } F_{2} = F_{2} \text { overlay } F_{1}$当且仅当$F_1=F_2$时成立。因此，前景结合时的顺序会带来不同。还有一个值得关注的地方在于，虽然交换结合顺序得到的两张的结合前景不同，但是得到的两张前景蒙版时相同的，就像双胞胎非常相像但是也还是存在某些区别。这一现象可以在图~\ref{fig:shared}中被观察到。因此，本文提出了四元组式合成。在这种合成机制中，两张独特的前景可以生成四个训练样本，这一思想可以被总结为少可成多（less can be more）。四元组式合成被总结在了算法~\ref{alg:quad-style}中。
+
+	和三元组式合成相比，唯一的区别在于四元组式合成产生了一个与三元组中的结合前景相对应的孪生前景，然后这两张前景将分别与两张背景进行组合生成两个样本。
+
+	在四元组的帮助下，一条完整的前景关系链得以建立。这条关系链中的所有成员都可以对彼此的信息进行补充，使得网络能够更好的学习和理解前景模式。
+
+
+	\begin{algorithm}[!t] 
+		\caption{四元组式合成} 
+		\setstretch{1.2}
+		\label{alg:quad-style} 
+		\begin{algorithmic}
+		\REQUIRE 前景集 $\mathcal{F}$, 前景蒙版集 $\mathcal{A}$, and 背景集 $\mathcal{B}$
+		\ENSURE 有 $M$ 个样本的样本集 $\mathcal{S}$ 
+		\STATE 初始化 $\mathcal{S}\leftarrow\{\}$
+		\FOR {$i=1,...,M\%4$}
+			\STATE 随机选择 $B_1\in\mathcal{B}$, $B_2\in\mathcal{B}$
+			\STATE 随机选择 $(F_1,\alpha_1)\in (\mathcal{F},\mathcal{A})$, $(F_2,\alpha_2) \in (\mathcal{F},\mathcal{A})$
+			\STATE $S_1\leftarrow \mathcal{COMP}(F_1,\alpha_1,B_1)$
+			\STATE $S_2\leftarrow \mathcal{COMP}(F_2,\alpha_2,B_2)$
+			\STATE \textcolor{mygreen}{// 产生孪生前景}
+			\STATE $(F_{\mathrm{new1}},\alpha_{\mathrm{new1}})\leftarrow \mathcal{RCF}(F_1,\alpha_1,F_2,\alpha_2)$ \textcolor{mygreen}{// the 1-st sample}
+			\STATE $(F_{\mathrm{new2}},\alpha_{\mathrm{new2}})\leftarrow \mathcal{RCF}(F_2,\alpha_2,F_1,\alpha_1)$
+			\textcolor{mygreen}{// the 2-nd sample}
+			\STATE $S_3\leftarrow \mathcal{COMP}(F_{\mathrm{new1}},\alpha_{\mathrm{new1}},B_1)$
+			\textcolor{mygreen}{// the 3-rd sample}
+			\STATE $S_4\leftarrow \mathcal{COMP}(F_{\mathrm{new2}},\alpha_{\mathrm{new2}},B_2)$
+			\textcolor{mygreen}{// the 4-th sample}
+			\STATE $\mathcal{S}\leftarrow \mathcal{S} \cup \{S_1,S_2,S_3,S_4\}$
+			\textcolor{mygreen}{// 将 $4$个相关样本加入样本集$\mathcal{S}$}
+		\ENDFOR
+		\end{algorithmic}
+	\end{algorithm}
+
+	\begin{figure*}[!t]
+		\centering
+		\includegraphics[width=1\linewidth]{figures/comparison_styles.pdf}\\
+		\caption{四种数据合成机制的对比}
+		\label{fig:comparison_styles}
+	\end{figure*}
+	\subsection{不同数据合成机制的分析}
+	如图~\ref{fig:comparison_styles}，DIM式合成，作为第一种数据合成机制，通过改变背景来增加样本的多样性，但由于前景数量少而受到限制。与DIM式合成相比，GCA式合成通过引入前景结合的选项，开始考虑扩大前景多样性。然而，他们未能做到：i）对结合前景和源前景之间的关系进行建模；ii）将两张前景中蕴含的信息挖掘出来。
+
+	本文通过引入两种新的数据合成机制来解决上述问题。特别是，三元组式合成建立了三个相关前景之间的联系，而GCA式合成则没有这样明确的联系。链接最直观的反应是前景的平衡，例如，1）结合前景和源前景的比例；2）某个前景和与之相关的结合前景的出现频率。
+
+	假设生成一个包含$N_s$样本的$\mathcal{S}$样本集，其前景集$\mathcal{F}$有$N_f$张独特前景。本文将样本集中任何一个$F_1$的出现频率定义为$M_s$，将与$F_1$相关的结合前景（用$F_{1X}$或$F_{X1}$表示（$1X$和$X1$指结合$F_X$和$F_1$时的结合顺序）的出现频率定义为$M_c$。其中，$F_X$代表与$F_{1}$结合的任何其他前景，$F_{1X}$在选择$F_1$作为基本前景进行前景结合时出现；$F_{X1}$在进行结合时选择$F_1$作为附加前景出现。本文注意到，在GCA式前景组合中，用单一的$F_1$形成样本的概率是，它被选为唯一的前景，且不执行前景组合。由于前景组合发生的概率为$0.5$，所以$M_s$的期望值为
+	\begin{equation*}
+		\mathbb{E}[M_s] = N_s \times \frac{1}{N_f} \times \frac{1}{2}=\frac{N_s}{2 N_f}\,.
+	\end{equation*}
+	产生$F_{1X}$或$F_{X1}$的概率可以分为两部分，本文分别衡量它们。$M_c$的期望值可以被分为两部分，表示为
+	\begin{equation*}
+		\mathbb{E}[M_c] =N_s \times\left(\frac{1}{N_f} \times \frac{1}{2}+\frac{N_f-1}{N_f} \times \frac{1}{2} \times \frac{1}{N_f-1}\right) =\frac{N_s}{N_f}\,.
+	\end{equation*}
+	对于本文提出的的三元组式合成，单前景样本可以被看作是结合前景的附加物，所以$F_1$的出现是由$F_{1X}$或$F_{X1}$的出现决定的。$N_f$前景可以产生$C_{N_f}^{2}$种组合，其中关于$F_1$的组合有$N_f-1$种。由于每个组合可以获得三个样本，三元组式合成只需要$N_s/3$的组合来生成$N_s$的样本。那么$M_s$和$M_c$的期望值可以表示为：
+	\begin{equation*}
+		\mathbb{E}[M_s]=\mathbb{E}[M_c]=\frac{N_s}{3} \times \frac{N_f-1}{C_{N_f}^{2}}=\frac{N_s}{3} \times \frac{N_f-1}{\frac{N_f(N_f-1)}{2}}=\frac{2 N_s}{3 N_f}\,.
+	\end{equation*}
+	\begin{figure*}[!t]
+		\centering
+		\includegraphics[width=1\linewidth]{figures/distribution1.pdf}\\
+		\caption{单一前景和与单一前景相关的结合前景的样本分布}
+		\label{fig:distribution1}
+	\end{figure*}
+
+	\begin{figure*}[!t]
+		\centering
+		\includegraphics[width=1\linewidth]{figures/distribution2.pdf}\\
+		\caption{在所有出现的组合中具有孪生前景的组合比例}
+		\label{fig:distribution2}
+	\end{figure*}
+
+	如图~\ref{fig:distribution1}所示，本文绘制了源前景和结合前景的分布，其中本文设定$N_f=431$表示DIM数据集中的前景数量，$N_s=96000$以确保大规模的统计。该图中的结果验证了期望值的推导，并表明GCA式的组合未能平衡结合前景和源前景，导致结合前景的数量是单一前景的两倍。此外，本文提出的三元组式合成保证了$F_1$和$F_{1X}$或$F_{X1}$的出现频率相等。它避免了$F_{1X}$或$F_{X1}$出现频率较高，但原始$F_1$没有被充分学习的情况。
+
+	为了突出四元组式合成和GCA式合成之间的差异，本文还统计了具有孪生前景的组合的出现频率。图~\ref{fig:distribution2}中的统计显示，在GCA式组合中，只有$11.6\%$的组合拥有同时出现孪生前景的机会，而本文提出的的四元组式合成可以将这个比例提高到$1$。因此，本文提出的四元组式合成可以保证，一旦一个组合的前景出现，它的孪生前景一定会出现在样本集中。
+
+
+
+
+	
+
+
+	\section{实验与分析}
+	为了验证本文提出的两种合成方式和前景结合操作符$\mathcal{RCF}$的有效性，本文在不同基线模型和基准数据集上进行了实验。本文在合成数据集和中都做了评估，以验证本文方法的泛化能力。
+	
+	\subsection{实现细节}
+	所有实验基于Pytorch~\cite{paszke2019pytorch}进行。应用上述合成方式只需修改数据加载器部分，而不需额外的修改。
+
+	\subsubsection{数据集}
+	所有模型都是合成数据集上进行训练，并且在合成和真实数据集上进行评估。本文在Deep Image Matting（DIM）数据集~\cite{DIM}的训练集上训练网络模型。该训练集包含431张独特前景和对应的前景蒙版。训练样本通过不同合成方式生成，与取自MS COCO数据集~\cite{COCO}的背景图像共同生成训练样本。本文在DIM的测试集Composition-1k和Automatic Image Matting-500（AIM-500）~\cite{AIM}上评估不同合成方式。DIM测试集含有50个不同的前景，每个前景与从Pascal VOC数据集~\cite{VOC}随机选取的200个背景相结合。AIM-500包含500张真实图像和对应的前景蒙版。
+	
+	\subsubsection{评价指标}
+	依照标准的误差指标\cite{metrics}，本文使用绝对误差和（SAD）、平均平方误差（MSE）、梯度误差（GRAD）和连通性误差（CONN）四个指标评估预测得到的前景蒙版的质量。后两个评价指标与人类对前景蒙版视觉质量的判定相符合。
+	\paragraph{绝对误差和（SAD）}
+	\begin{equation}
+		SAD=\sum\limits_i\left|\alpha_i-\alpha_i^*\right|\,,
+	\end{equation}
+	其中$\alpha_i$为预测得到的前景蒙版，$\alpha_i^*$为真实的前景蒙版。
+	\paragraph{均方误差（MSE）}
+	\begin{equation}
+		MSE=\frac{1}{n}\sum\limits_i\left(\alpha_i-\alpha_i^*\right)^2\,,
+	\end{equation}
+	其中$\alpha_i$为预测得到的前景蒙版，$\alpha_i^*$为真实的前景蒙版，$n$为测试集样本数。
+	\paragraph{梯度误差（GRAD）}
+	\begin{equation}
+		GRAD=\sum\limits_i\left(\nabla\alpha_i-\nabla\alpha_i^*\right)^q\,,
+	\end{equation}
+	其中$\nabla\alpha_i$表示求$\alpha_i$的归一化梯度，是将前景蒙版与一阶高斯导数滤波器卷积得到的。$q$为自定义函数，本文依照\cite{metrics}将$q$设为$2$。
+	\paragraph{连通性误差（CONN）}
+	\begin{equation}
+		CONN=\sum_{i}\left(\varphi\left(\alpha_{i}, \Omega\right)-\varphi\left(\alpha_{i}^{*}, \Omega\right)\right)^{p}\,,
+	\end{equation}
+	其中$\alpha_i$为预测得到的前景蒙版，$\alpha_i^*$为真实的前景蒙版，通过从灰度前景蒙版矩阵中计算出的二进制阈值图像的连通性来定义连通性的程度。
+
+	\subsubsection{基线模型}
+	本文选取3个代码开源的典型抠图模型作为基线模型：IndexNet Matting~\cite{index}、GCA Matting~\cite{GCA}和A2U Matting~\cite{A2U}。为了公平对比，本文使用与上述文章中相同的训练设置。
+
+	\subsubsection{公平对比}
+	为了公平对比，所有实验将在下述设置下进行。首先，本文对不同数据合成机制使用相同的数据增强方法，即GCA Matting使用的增强方法，这样唯一的变量只是不同的数据合成机制。其次，为了消除属于样本容量的影响，本文为每种合成方式提供了同样数量的训练样本。三元组和四元组每次分别生成$3$个和$4$个样本，因此对这两种合成方式总生成样本的迭代次数分别设为其余方法的$\frac{1}{3}$和$\frac{1}{4}$次。这样不同点只在于训练集中样本的多样性，而不是样本数量。进一步，在比较两种合成算子$\mathcal{NCF}$和$\mathcal{RCF}$时，本文固定样本集的顺序和样本内容来确保唯一的差异在于新前景的生成方式。
+
+	\subsection{不同前景结合操作符的对比}
+	这里本文比较前景结合操作符（$\mathcal{NCF}$）和本文提出合理前景结合操作符（$\mathcal{RCF}$）在不同基线网络IndexNet和A2U与不同合成方式上的效果。本文在Composition-$1$K和AIM-$500$数据集上都对两种前景结合操作符进行了评估。如表\ref{tab:foreground-combination}所示，$\mathcal{RCF}$在两个数据集上均取得了比$\mathcal{NCF}$更好的性能。这个发现支持了$\mathcal{RCF}$在结合前景和合成结果中过滤噪声和减少伪影的能力。同时，在AIM-$500$上Index-GCA基线网络模型$4.09$ SAD的提升也显示了其泛化能力。
+
+	
+		
+	图\ref{fig:chair}展示了相关的可视化结果。从图中的可以看出，$\mathcal{NCF}$造成了椅子腿的缺失，而$\mathcal{RCF}$可以平滑且可靠地恢复相关细节。而$\mathcal{NCF}$带来的的伪影会影响不透明度，如图\ref{fig:ncf-composition}所示。由于第\ref{ssec:analysis}节所述的不匹配监督问题，网络可能无法恢复一些简单的轮廓。	
+
+	\begin{table}[htbp]
+		\centering
+		\setstretch{1.2}
+		\caption{不同前景结合操作符在Composition-1k测试集和AIM-500测试集上的结果。A2U-quad指采用A2U作为基线模型，四元组式合成作为数据合成机制, Index-gca 采用IndexNet作为基线模型，GCA式合成作为数据合成机制。}
+		\label{tab:foreground-combination}
+		\begin{tabular}{@{}lcccccc@{}}
+		\toprule
+		 & \multirow{2}{*}{$\mathcal{NCF}$} & \multirow{2}{*}{$\mathcal{RCF}$}& \multicolumn{4}{c}{Compostion-1k} \\
+		 %\cmidrule(r){4-7}
+		 & && SAD & MSE & GRAD & CONN \\
+		 \midrule
+		 A2U-quad & \Checkmark &  & 32.70 & \textbf{0.0066} & 16.24 & 30.29 \\
+		 A2U-quad &  & \Checkmark & \textbf{30.47} & 0.0071 & \textbf{15.30} & \textbf{27.27} \\
+		 Index-gca & \Checkmark &  &45.19  &0.0130  & \textbf{23.62}  &44.68  \\
+		 Index-gca &  & \Checkmark & \textbf{44.03} & \textbf{0.0135} &24.76 & \textbf{42.89}\\
+		 \midrule
+		  & \multirow{2}{*}{$\mathcal{NCF}$} & \multirow{2}{*}{$\mathcal{RCF}$}&\multicolumn{4}{c}{AIM-500} \\
+		  %\cmidrule(r){4-7}
+		  &  &  & SAD & MSE & GRAD & CONN \\
+		 \midrule
+		 A2U-quad & \Checkmark &  & 29.21 & 0.0293 & 22.09 & 29.72 \\
+		 A2U-quad &  & \Checkmark & \textbf{28.03} & \textbf{0.0272} & \textbf{21.21} & \textbf{28.47}\\
+		 Index-gca & \Checkmark &  &37.99  &0.0508  &32.60  &37.82  \\
+		 Index-gca &  & \Checkmark & \textbf{33.90} & \textbf{0.0431} & \textbf{29.96} & \textbf{33.63}\\
+		\bottomrule
+		\end{tabular}
+	\end{table}
+
+
+	\begin{figure*}[!t]
+		\centering
+		\vspace{10pt}
+		\includegraphics[width=1\linewidth]{figures/chair.pdf}\\
+		\caption{不同前景结合操作符在真实图像上的可视化结果}
+		\label{fig:chair}
+	\end{figure*}
+
+
+	\subsection{不同数据合成机制的比较}
+	这一节对本文提出的两种数据合成机制与其他数据合成机制进行了多方面的对比，测试了它们在不同基线模型上的表现以及在可用前景数量减少时的表现。以下结果均表示，本文提出的两种数据合成机制远远优于当前被广泛使用的两种。
+	\subsubsection{多基线模型上的对比试验}
+    
+	\begin{table*}[htbp]
+		% \renewcommand\arraystretch{1.0}
+		\setlength{\tabcolsep}{7.2pt}
+		\centering
+		\setstretch{1.2}
+		\caption{不同数据合成机制在IndexNet Matting上的量化结果。其中最好的结果加粗表示，次优的结果下划线表示。IndexNet原本采用的是DIM合成。}
+		\label{tab:styles-index}
+		\begin{tabular}{@{}lcccc@{}}
+		\toprule
+		& \multicolumn{4}{c}{IndexNet Matting} \\
+		& SAD    & MSE  & GRAD  & CONN\\
+		\midrule
+		Reported         & 45.80   &	0.0130  & 25.90 & 43.70    \\
+		DIM式合成         & 43.03  & 0.0115     & 22.21 & 41.70     \\
+		GCA式合成        &45.19  &0.0130  &23.62  &44.68       \\
+		三元组式合成  (Ours)    &\underline{38.65}        &\underline{0.0100}      &\underline{20.29}       &\underline{36.78}     \\
+		四元组式合成  (Ours) &\textbf{38.16}        &\textbf{0.0099}      &\textbf{19.37}       &\textbf{36.31}    \\
+		\bottomrule
+		\end{tabular}
+	\end{table*}
+
+	\begin{table*}[htbp]
+		% \renewcommand\arraystretch{1.0}
+		\setlength{\tabcolsep}{7.2pt}
+		\setstretch{1.2}
+		\centering
+		\caption{不同数据合成机制在GCAMatting上的量化结果。其中最好的结果加粗表示，次优的结果下划线表示。GCA基线模型原本采用的是GCA式合成。}
+		\label{tab:styles-GCA}
+		\begin{tabular}{@{}lcccc@{}}
+		\toprule
+		& \multicolumn{4}{c}{GCA Matting} \\
+		& SAD    & MSE  & GRAD  & CONN\\
+		\midrule
+		Reported          & 35.28       & 0.0091       & 16.92      & 32.53    \\
+		DIM式合成          &37.74       &0.0100        &18.64       &32.64    \\
+		GCA式合成         &35.16 & 0.0090 & 17.69 & 32.61 \\
+		三元组式合成  (Ours)    & \textbf{31.91} & \textbf{0.0075} & \textbf{14.14} & \textbf{27.77}  \\
+		四元组式合成  (Ours) &\underline{ 33.16} & \underline{0.0080 }& \underline{15.09} & \underline{29.35}\\
+		\bottomrule
+		\end{tabular}
+	\end{table*}
+
+	\begin{table*}[htbp]
+		% \renewcommand\arraystretch{1.0}
+		\setlength{\tabcolsep}{7.2pt}
+		\setstretch{1.2}
+		\vspace{10pt}
+		\centering
+		\caption{不同数据合成机制在A2U Matting上的量化结果。其中最好的结果加粗表示，次优的结果下划线表示。A2U基线模型原本采用的是GCA式合成。}
+		\label{tab:styles-A2U}
+		\begin{tabular}{@{}lcccc@{}}
+		\toprule
+		& \multicolumn{4}{c}{A2U Matting} \\
+		& SAD    & MSE  & GRAD  & CONN\\
+		\midrule
+		Reported         & 32.10 & 0.0078 & 16.33  & 29.00     \\
+		DIM式合成         & 36.16 & 0.0089 & 17.20  & 34.06    \\
+		GCA式合成         & 32.15 & 0.0082 & 16.39 & 29.25 \\
+		三元组式合成 (Ours)    &\underline{31.52} & \underline{0.0072} & \underline{15.89} & \underline{28.47} \\
+		四元组式合成 (Ours) & \textbf{30.47} & \textbf{0.0071} & \textbf{15.30} & \textbf{27.47}\\
+		\bottomrule
+		\end{tabular}
+	\end{table*}
+	本文在Composition-1K上比较了先前的数据合成机制和上述的三元组和四元组数据合成机制，其公平性由上节所述设置确保。由表\ref{tab:styles-index}，\ref{tab:styles-GCA}，\ref{tab:styles-A2U}可知，在所有基线网络模型上，本文提出的两种数据合成机制大幅超过DIM式合成和GCA式合成，这说明本文方法对不同网络模型保持鲁棒性。观察可知，DIM式合成由于缺少前景多样性，而表现不好；GCA式合成在IndexNet上失效，甚至差于DIM式合成。本文猜想GCA合成方式虽然增加了样本集的前景多样性，但是它忽视了源前景之间的关联性，导致了源前景和合成的新前景之间的不平衡分布。与之相反，三元组式合成通过建立前景之间的关联并且平衡源前景和结合前景之间的分布，充分发掘隐含在前景结合之中的价值，并带来$6.54$ SAD的提升。通常增加网络复杂度或者使用复杂的训练策略会带来这样的性能提升，但是本文显示这样的提升可以仅仅通过一种合理的合成数据流来实现，不需要任何网络设计的改变或是费力的训练手续。
+
+
+	对比以往数据合成机制，尽管本文提出的两种数据合成机制均呈现了优越性，但它们之间存在一定的差异。四元组式合成在IndexNet和A2U上取得了最好的性能，说明通过孪生前景引入的额外信息是有效的。在GCA基线模型上，四元组性能以$1.25$ SAD差于三元组。其原因可能是IndexNet和A2U聚焦在借助编码器的低层信息的引导进行动态上采样，这对结合前景的叠放顺序更加敏感。而GCA追求探究全局高层信息，因此可能惑于两张前景顺序的交换。一般来说，两种数据合成机制的选择可以根据网络模型的特点作适应性的调整。图\ref{fig:visual-results}给出了一些可视化的结果。与先前的数据合成机制相比，本文提出的数据合成机制在面对像网这样复杂的输入时，也能恢复更加清晰和精细的结构。
+
+	\begin{figure*}[!t]
+		\centering
+		\vspace{10pt}
+		\includegraphics[width=1\linewidth]{figures/visual_results.pdf}\\
+		\caption{不同数据合成机制在Composition-1k上的可视化结果}
+		\label{fig:visual-results}
+	\end{figure*}
+	\subsubsection{可用前景数量变化时的稳定性对比}
+	由于可用的前景数量很少，怎样利用现有的数据，发掘更大的多样性来保证训练稳定，是一个好的数据合成机制应该做到的事情。于是，本文逐步减少了给网络提供的前景数量，将原有的$431$张前景减少到$300$和$200$张。值得注意的是，本文是通过随机采样的方式进行的前景筛选，并且保证每种数据合成机制使用的前景集是相同的。在这样的公平设置下，本文对GCA式合成与DIM式合成，以及本文的三元组式合成进行了面对减少的前景的稳定性的探究。实验结果以图的形式展示在了图~\ref{fig:reduce}中，从图中随着数据量增大的下降曲线可以看出，本文提出的三元组式合成相比于另外两种数据合成机制保持了良好的稳定性，甚至可以做到只用一半的数据，达到和其他数据合成机制相当的结果。
+	
+	\begin{figure*}[!t]
+		\centering
+		\vspace{10pt}
+		\includegraphics[width=1\linewidth]{figures/plot_GRAD.pdf}\\
+		\caption{不同数据合成机制在可用前景减少时的结果}
+		\label{fig:reduce}
+	\end{figure*}
+
+	\subsubsection{真实数据集上泛化性对比}
+	这一节对本文提出的两种数据合成机制进行了真实数据集上的泛化性验证。以A2U Matting作为基线模型进行了实验。实验结果在表~\ref{tab:generalize}中展示。结果显示，提出的三元组和四元组式合成的泛化性也是比之前的合成机制更好。
+
+	\begin{table*}[htbp]
+		\caption{不同数据合成机制的泛化性对比。该实验以A2U作为基线模型。}
+		\label{tab:generalize}
+		\setstretch{1.2}
+		\centering
+		\addtolength{\tabcolsep}{-4pt}
+		\begin{tabular}{@{}lccccc|cccc@{}}
+			\toprule
+			  & \multirow{2}{*}{shuffle}&  \multicolumn{4}{c}{composition-1k} &\multicolumn{4}{c}{AIM}                  \\
+			  && SAD & MSE & GRAD & CONN & SAD & MSE & GRAD & CONN\\
+			\midrule
+			DIM式合成&      
+			&36.16 &0.0089 &17.20 &34.06 &35.39 &0.0412 &27.85 &35.95\\
+			
+			GCA式合成&      
+			&32.15 &0.0082 &16.39 &29.25 &30.38 &0.0307 &22.60 &30.69\\
+			
+			三元组式合成& \multirow{2}{*}{\Checkmark}     
+			&31.52 &0.0072 &15.89 &28.47 &28.89 &0.0272 &20.82 &29.17\\
+			
+			四元组式合成 & &\textbf{30.47} &\textbf{0.0071} &\textbf{15.30} &\textbf{27.27} &\textbf{28.03} &\textbf{0.0272} & \textbf{21.21} & \textbf{28.47}\\
+			
+			三元组式合成& \multirow{2}{*}{\XSolid}    
+			&32.40 &0.0075 &16.59 &29.51 &28.34 &0.0263 &20.83 &28.72\\
+			四元组式合成  & &31.56 &0.0071 &16.40 &28.45 &30.70&0.0297&22.17&31.26\\
+			
+			
+			\bottomrule
+		\end{tabular}
+	\end{table*}
+
+	在真实图像上的可视化结果展示在图~\ref{fig:supp}中。
+	\begin{figure*}[!t]
+		\centering
+		\vspace{10pt}
+		\includegraphics[width=1\linewidth]{figures/supp.pdf}\\
+		\caption{不同数据合成机制在真实图像上的可视化结果}
+		\label{fig:supp}
+	\end{figure*}
+
+	
+	
+	\subsection{溶解实验}
+	这一节对本文提出的两种数据合成机制的一些设置进行了溶解实验。
+	\subsubsection{不同数据处理过程的影响}
+	本文使用无任何数据处理的IndexNet作为基线网络。为了验证每个组成部分的作用，溶解实验包括常用数据增强、$\mathcal{RCF}$和三元组/四元组式合成。定量的实验结果在表\ref{tab:component}给出。对比1号和2号可以看出$1.84$ SAD的明显提升。这是通过使用数据增强改变视觉外观实现的。比较2号和3、4号，本文提出的合成方式在4种指标上取得了大幅的性能提升。该结果证实了本文的合成方式的有效性和平衡前景分布的重要性。
+
+	同时，当把三元组换为四元组时也会有一定的性能提升。
+
+
+	\begin{table}[!t]
+		\caption{不同数据处理过程的影响。DA代表GCA基线模型中常用的数据增强方法，例如随机抖动。Tri和Quad分别代表三元组式合成和四元组式合成。}
+		\label{tab:component}
+		\centering
+		\setstretch{1.2}
+		\begin{tabular}{@{}lcccccccc@{}}
+		\toprule
+		&DA  & $\mathcal{RCF}$ & Tri & Quad & SAD & MSE & GRAD & CONN \\
+		\midrule
+		No.1& &  &    &  & 44.87 & 0.0124 & 25.08 & 41.23 \\
+		No.2&\Checkmark   &  &  &  & 43.03 & 0.0115 & 22.21 & 41.70 \\
+		No.3&\Checkmark   & \Checkmark & \Checkmark &  & 38.65 & 0.0100 & 20.29 & 36.78 \\
+		No.4&\Checkmark   & \Checkmark &  & \Checkmark & \textbf{38.16} &\textbf{ 0.0099} & \textbf{19.37} & \textbf{36.31}\\
+		\bottomrule
+		\end{tabular}
+	\end{table}
+
+	\begin{table}[htbp]\small
+		% \caption{Ablation study on the sequence order.}
+		\caption{在A2U上进行的有序样本和乱序样本实验。}
+		\addtolength{\tabcolsep}{4pt}
+		\renewcommand\arraystretch{1.1}
+		\label{tab:distribution}
+		\centering
+		\begin{tabular}{@{}lcccccc@{}}
+			\toprule
+			  & \multirow{2}{*}{shuffle} &  \multicolumn{4}{c}{composition-1k}               \\
+			  && SAD & MSE & GRAD & CONN \\
+			\midrule
+			三元组式合成& \multirow{2}{*}{\Checkmark}  
+			&31.52 &0.0072 &15.89 &28.47 \\
+			
+			四元组式合成 &  &30.47 &0.0071 &15.30 &27.27 \\
+			\hline
+			三元组式合成& 
+			&32.40 &0.0075 &16.59 &29.51 \\
+			四元组式合成 &  &31.56 &0.0071 &16.40 &28.45\\
+			\bottomrule
+		\end{tabular}
+	\end{table}
+	\subsubsection{乱序样本对比有序样本}
+	这里本文对前景多样性和样本关联性之间的权衡进行了一些有趣的探索。在本文观点下，更多的前景多样性表示在训练时一个批处理中更多的独立前景样本。而更深刻的样本关联性对应于更多前景关联的样本。像第\ref{sec:proposed}节介绍的，一个新的样本集通过三元组和四元组方式生成。两个原前景和它们生成的新样本置于同一个批处理中，称为有序的、相关联的样本。这个操作给训练过程带来了更深刻的样本关联。相反地，打乱增加了一个批处理中的样本多样性，并在训练时建立了一代中的样本软关联。表\ref{tab:distribution}显示，有序样本降低了性能，这说明样本之间过紧的关联反而产生负面效果，阻碍了网络学习样本类间差异。打乱的样本阻止了网络过度聚焦于相关样本的丰富特征。在这种情况下，本文提出的合成方式能够保持每个批处理中的信息多样化和整个样本集中的样本关联性的平衡，因此带来了更好的性能。
+
+	
+	\section{结束语}
+	\subsection{本文主要工作}%讲做了什么
+	图像抠图，作为计算机视觉的基础领域，引起了许多人的关注。近年来提出的新模型层出不穷，但是，这一领域的一大痛点——数据资源不足，却没有得到足够的重视。
+	
+	首先为了了解图像抠图这一领域的基本原理，本文复现了深度图像抠图中里程碑式的工作——DIM，对这一领域有了基本的了解。
+
+	之后，为了了解现有的方法都使用怎样的合成机制，本文首先对深度图像抠图的文献进行了归纳和总结。经过查询和学习，本文发现现在广泛使用的数据合成机制可以被总结为两种——DIM式合成和GCA式合成。
+
+	在对两种数据合成机制进行深入研究时，本文发现GCA式合成产生的合成结果中会有来自前景中的噪声，这一噪声是由于GCA式合成仅仅将两张前景分别视为前景和背景造成的。于是，本文重新思考这一过程，得到了一个两阶段的表示，这样得到的结合前景更加纯净，能够得到更加真实的合成结果。
+
+	在完成前景操作符的改进后，本文发现，前景结合时的不同顺序会带来不同的结合前景。由此，本文希望探究，是否可以将这两种前景都送入网络学习呢？
+
+	在送入网络学习的过程中，本文思考了以什么样的频率和次数，让网络见到这些相关前景能够带来更加高效的训练和前景利用。在此过程中，本文经过了大量以实验为基础的试探，最终得到了三元组式合成和四元组式合成这样建立强连接的方式。
+ 
+	\subsection{主要研究结论}%讲做的工作取得了什么效果
+	本文抓住深度图像抠图中可用来训练的真实前景蒙版数量少这一痛点，针对数据合成机制这一被大大忽视作用的方向进行了深入研究和探讨。
+	
+	本文先对于现有的数据合成机制进行了回顾，并分析了它们的不足，如：DIM式合成没有提高前景的多样性，GCA式合成使用了错误的前景结合方式。
+
+	以这些不足为动机，本文提出了两种新颖的数据合成机制。首先，针对GCA式合成的错误前景结合操作符$\mathcal{NCF}$，本文重新思考了前景结合方式，将前景结合归结为一个两阶段的合成过程。以此为基础，提出了一个合理的前景结合操作符$\mathcal{RCF}$。在$\mathcal{RCF}$的基础上，本文根据现有的数据合成机制没有对源前景里的先验知识进行利用这一不足，提出了一种能够平衡样本分布的三元组式合成。同时，本文在实验中观察到，前景结合时不同的结合顺序能够带来不一样的结合前景。于是，在三元组的基础上，本文将结合前景的孪生前景也添加进来，形成了四元组，并构成了四元组式合成。
+
+	为了证实所提出方法的有效性，本文在几个基线网络模型上进行了扩展实验。实验结果显示所提出的合成方式在性能上大幅超过先前方法。作为第一个在深度抠图中深入研究样本生成流的工作，本文希望该工作能够为未来工作开拓更多的可能性。
+
+
+	\subsection{认识与体会}
+	\paragraph{张三} 本次研究持续了将近10周的时间，对于课设研究的全过程仍然记忆犹新。本次课设给我带来了较大的提升，也令我感受颇深。balabala...
+
+    \paragraph{李四} balabala...
+
+	\newpage
+
+    \section*{小组分工}
+
+
+    \begin{table*}[htbp]
+		\renewcommand\arraystretch{2.0}
+		\setlength{\tabcolsep}{10pt}
+		% \setstretch{1.5}
+		\vspace{10pt}
+		\centering
+		\caption{小组成员分工}
+		\label{tab:styles-A2U}
+		\begin{tabular}{@{}lcc@{}}
+		\toprule
+		小组成员 & 任务分工 & 工作占比 \\
+		\midrule
+        熊大 & 资料搜集、算法设计、代码编写 & $20\%$\\
+        刘二 & 算法设计、代码移植、报告撰写  & $20\%$\\
+        张三 & 算法设计、代码编写、报告撰写  & $20\%$\\
+        李四 & 算法设计、代码编写、报告撰写  &  $20\%$\\
+        王五 & 算法设计、代码编写、报告撰写  &  $20\%$\\
+		\bottomrule
+		\end{tabular}
+	\end{table*}
+
+    
+
+
+
+\newpage
+\section*{主要模块代码}
+% 不用把所有代码复制粘贴，放上主要模块代码即可
+% 放上GitHub的代码链接
+
+
+\bibliography{Bibs/reference.bib}
+\end{document}

@@ -244,14 +244,9 @@ def facility_location_selection(features, actions, candidate_mask, n_coreset, ve
         print(f'[Stage 3] 候选池: {len(candidate_indices)}/{N} 帧 ({len(candidate_indices)/N*100:.1f}%)')
         print(f'[Stage 3] 目标核心集: {n_coreset} 帧 ({n_coreset/N*100:.1f}%)')
 
-    # 内存保护: 候选池 > 5000 时随机下采样
-    MAX_CAND = 5000
-    if len(candidate_indices) > MAX_CAND:
-        if verbose:
-            print(f'[Stage 3] 候选池 {len(candidate_indices)} > {MAX_CAND}, 随机下采样...')
-        np.random.seed(42)
-        candidate_indices = np.random.choice(candidate_indices, size=MAX_CAND, replace=False)
-        candidate_indices = np.sort(candidate_indices)
+    if verbose and len(candidate_indices) > 5000:
+        est_mb = len(candidate_indices)**2 * 4 / 1024 / 1024
+        print(f'[Stage 3] 候选池 {len(candidate_indices)} 帧, 核矩阵约 {est_mb:.0f}MB')
 
     if len(candidate_indices) <= n_coreset:
         if verbose:
