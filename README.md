@@ -93,13 +93,28 @@ pip install -r requirements.txt
 export HF_ENDPOINT=https://hf-mirror.com  # 国内用户
 ```
 
-### 运行
+### 复现各版本
+
+| 版本 | 编码器 | 采样策略 | 输入维度 | MLP 输出 |
+|------|--------|---------|---------|---------|
+| v1 | ResNet-18 | 高误差 (`keep_high_error=True`) | 512d | 7-DoF MSE |
+| v2 | ResNet-18 | 原型 (`keep_high_error=False`) | 512d | 7-DoF MSE |
+| v3 | CLIP 单帧 | 原型 | 512d | 7-DoF MSE |
+| v4 | CLIP 时序×3 | 原型 | 1536d | 7-DoF MSE |
+| v5 | CLIP VLA | 原型 | 2048d | 6-DoF MSE + 夹爪 BCE |
 
 ```bash
-# 最终 VLA 实验
+# 一键消融: 自动跑通 v1→v5, 结果保存至 data/cache/ablation_results.npy
+python experiments/run_ablation.py
+
+# 仅跑 v5 (语言模态 + 双头 MLP)
 python run_final_experiment.py
 
-# 生成图表
+# 单独跑某版本 (修改脚本内 encoder_type/keep_high_error)
+python experiments/run_baseline.py          # encoder_type='resnet'|'clip'
+python experiments/run_full_pipeline.py     # 完整三阶段, CLIP 时序
+
+# 生成 Fig 1-7 (PNG + PDF)
 python src/visualize_cn.py
 ```
 
@@ -109,24 +124,24 @@ python src/visualize_cn.py
 
 ```
 ├── src/
-│   ├── data_loader.py              # ALOHA 数据加载
-│   ├── feature_extractor.py        # CLIP 视觉+文本编码器
-│   ├── mlp_model.py                # MLP + DualHeadMLP
+│   ├── data_loader.py              # ALOHA 数据加载 + 视频解码
+│   ├── feature_extractor.py        # ResNet-18 / CLIP 视觉+文本编码器
+│   ├── mlp_model.py                # MLP (v1-v4) + DualHeadMLP (v5)
 │   ├── temporal_stack.py           # 时序堆叠 + 语言拼接
-│   ├── stage1_predictive_coding.py # 阶段1: 预测编码
-│   ├── stage2_ras_events.py        # 阶段2: RAS 事件
-│   ├── stage3_facility_location.py # 阶段3: 子模优化
-│   └── visualize_cn.py            # 可视化
+│   ├── stage1_predictive_coding.py # 阶段1: 预测编码 (高误差/原型)
+│   ├── stage2_ras_events.py        # 阶段2: RAS 关键事件检测
+│   ├── stage3_facility_location.py # 阶段3: Facility Location 子模优化
+│   └── visualize_cn.py            # 可视化 Fig 1-7
 ├── experiments/
-│   ├── run_baseline.py
-│   └── run_full_pipeline.py
-├── run_final_experiment.py         # 最终实验
-├── report/
-│   ├── main.tex                    # LaTeX 报告
-│   └── figures/                    # 图表
+│   ├── run_ablation.py             # ★ 一键消融 v1→v5 (所有版本)
+│   ├── run_baseline.py             # 随机基线 (可指定 encoder_type)
+│   └── run_full_pipeline.py        # 完整三阶段流水线 (v4)
+├── run_final_experiment.py         # ★ v5 最终实验
+├── report/figures/                 # 图表 (PNG + PDF, 7张)
 ├── CLAUDE.md                       # 开发规范
 ├── PROJECT_PLAN.md                 # 实施方案
-├── PROJECT_STATUS.md               # 状态汇报
+├── PROJECT_STATUS.md               # 项目状态汇报
+├── acceptance_criteria.md          # 验收清单
 └── README.md                       # 本文件
 ```
 
