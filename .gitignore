@@ -17,8 +17,15 @@ venv/
 .vscode/
 .idea/
 
-# Claude 内部配置
+# 开发过程文件 (不上传)
+CLAUDE.md
+PROJECT_PLAN.md
+PROJECT_STATUS.md
+acceptance_criteria.md
+explore_dataset.py
+test_pipeline.py
 .claude/
+memory/
 
 # 系统文件
 .DS_Store
@@ -36,7 +43,7 @@ Thumbs.db
 *.log
 *.tmp
 
-# ����Դ�ļ�
+# 报告源文件
 report/*.tex
 report/fig1_prompt.md
 report/refer.tex
