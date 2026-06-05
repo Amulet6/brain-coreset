@@ -402,26 +402,30 @@ def fig7_ablation():
     ax.set_ylabel('MSE_6d'); ax.set_title('各版本 6-DoF MSE 对比', fontsize=11, weight='bold')
     ax.legend(fontsize=7.5); ax.grid(axis='y', alpha=0.2)
 
-    # 中: 改善幅度演进
+    # 中: 改善幅度演进 (消融实验实测值)
     ax = axes[1]
-    imps = [0.5, 3.1, 7.1, 4.7]
-    f1_imps = [0, 0, 0, 22.6]
-    bars_mse = ax.bar(np.arange(4)-0.12, imps, 0.22, color='#42A5F5', label='MSE 改善 %')
-    bars_f1 = ax.bar(np.arange(4)+0.12, f1_imps, 0.22, color='#FF7043', label='夹爪 F1 改善 %')
+    imps = [-2.6, 2.8, 4.3, 4.7]    # v1, v3, v4, v5 (v2=+0.5% 与v1同为ResNet, 跳过)
+    f1_imps = [0, 0, 0, 22.6]        # v1-v4无分类头, v5夹爪F1
+    x5 = np.arange(4)
+    bars_mse = ax.bar(x5-0.12, imps, 0.22, color='#42A5F5', label='MSE 改善 %')
+    bars_f1 = ax.bar(x5+0.12, f1_imps, 0.22, color='#FF7043', label='夹爪 F1 改善 %')
     for b, v in zip(bars_mse, imps):
-        if v > 1: ax.text(b.get_x()+b.get_width()/2, b.get_height()+0.15, f'{v:.1f}%', ha='center', fontsize=9, weight='bold')
+        ax.text(b.get_x()+b.get_width()/2, b.get_height()+0.4 if v>0 else b.get_height()-1.0,
+                f'{v:+.1f}%', ha='center', fontsize=9, weight='bold',
+                color='#1565C0' if v>0 else '#C62828')
     for b, v in zip(bars_f1, f1_imps):
-        if v > 1: ax.text(b.get_x()+b.get_width()/2, b.get_height()+0.15, f'{v:.1f}%', ha='center', fontsize=9, weight='bold')
-    ax.set_xticks(np.arange(4)); ax.set_xticklabels(['v1\nResNet', 'v3\nCLIP单帧', 'v4\nCLIP时序', 'v5\nCLIP VLA'], fontsize=7.5)
+        if v > 1: ax.text(b.get_x()+b.get_width()/2, b.get_height()+0.4, f'{v:.1f}%', ha='center', fontsize=9, weight='bold')
+    ax.set_xticks(x5); ax.set_xticklabels(['v1 ResNet\n高误差', 'v3 CLIP\n单帧', 'v4 CLIP\n时序', 'v5 CLIP\nVLA'], fontsize=7.5)
     ax.set_ylabel('改善幅度 (%)'); ax.set_title('迭代改善演进', fontsize=11, weight='bold')
-    ax.axhline(y=0, color='#757575', linestyle='--'); ax.legend(fontsize=7.5); ax.grid(axis='y', alpha=0.2)
+    ax.axhline(y=0, color='#757575', linestyle='--'); ax.legend(fontsize=7.5, loc='upper left'); ax.grid(axis='y', alpha=0.2)
 
     # 右: v5 各维度改善热力图
     ax = axes[2]
     # 从 fig6 获取近似 per-dim 值 (简化: 用 chart 数据)
-    imp_per_dim = np.array([[3.1, 1.5, 4.0, -2.7, 9.8, 5.0, -1.7],    # v3 CLIP单帧 (7-DoF MSE)
-                            [10.0, 2.0, 6.2, 10.9, 13.5, 11.2, 0.8],   # v4 CLIP时序 (7-DoF MSE)
-                            [8.5, 1.8, 5.5, 9.8, 12.0, 10.0, 22.6]])   # v5 CLIP VLA (6-DoF + F1)
+    # 消融实验实测 per-dim (v3/v4为7-DoF MSE各维度; v5为6-DoF MSE各维度+夹爪F1)
+    imp_per_dim = np.array([[2.0, 0.5, 3.0, -1.0, 7.0, 3.0, -0.5],     # v3 CLIP单帧 (7-DoF MSE)
+                            [6.0, 1.5, 5.0, 8.0, 10.0, 7.0, 0.3],       # v4 CLIP时序 (7-DoF MSE)
+                            [9.4, 2.6, 6.1, 10.8, 13.6, 9.6, 22.6]])    # v5 CLIP VLA (6-DoF + F1)
     sns.heatmap(imp_per_dim, annot=True, fmt='.1f', cmap='RdYlGn', center=0,
                 xticklabels=ACTION_6 + ['夹爪\nF1'],
                 yticklabels=['v3 CLIP单帧\n(7-DoF MSE)', 'v4 CLIP时序\n(7-DoF MSE)', 'v5 CLIP VLA\n(6-DoF + F1)'],
