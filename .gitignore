@@ -4,47 +4,23 @@ __pycache__/
 *.so
 *.egg-info/
 
-# 数据缓存 (太大, 不上传)
-data/cache/*.npy
-data/cache/*.npz
-
 # 虚拟环境
 env/
 venv/
-.vla/
 
 # IDE
 .vscode/
 .idea/
 
-# 开发过程文件 (不上传)
-CLAUDE.md
-PROJECT_PLAN.md
-PROJECT_STATUS.md
-acceptance_criteria.md
-explore_dataset.py
-test_pipeline.py
-.claude/
-memory/
-
 # 系统文件
 .DS_Store
 Thumbs.db
 
+# 数据缓存
+data/cache/
+
 # Jupyter
 .ipynb_checkpoints/
 
-# 试卷文档 (版权)
-*.docx
-*.pdf
-!report/figures/*.pdf
-
-# 临时文件
-*.log
-*.tmp
-
-# 报告源文件
-report/*.tex
-report/fig1_prompt.md
-report/refer.tex
-.zip
+# 压缩包
+*.zip
